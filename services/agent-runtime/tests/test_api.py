@@ -133,9 +133,9 @@ def test_installer_status_returns_default_state() -> None:
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["current_step"] == "environment-check"
+    assert payload["current_step"] == "download"
     assert payload["completed"] is False
-    assert payload["steps"]["environment-check"]["status"] == "pending"
+    assert payload["steps"]["download"]["status"] == "pending"
     assert payload["openclaw"]["installed"] is False
     assert payload["ai"]["provider"] == "local"
     assert payload["connection"]["connected"] is False
@@ -183,11 +183,12 @@ def test_installer_environment_check_returns_structured_dependency_state(
     payload = response.json()
     assert payload["environment"]["missing_prerequisites"] == ["Rust"]
     assert payload["environment"]["missing_runtime_dependencies"] == ["Ollama"]
-    assert payload["step"]["status"] == "complete"
+    assert payload["step"]["id"] == "download"
+    assert payload["step"]["status"] == "active"
     assert "Rust" in payload["step"]["message"]
 
 
-def test_prepare_prerequisites_completes_and_persists_state(monkeypatch) -> None:
+def test_download_step_completes_and_persists_state(monkeypatch) -> None:
     state = {"ready": False}
 
     def fake_environment_checks() -> list[installer.DependencyStatus]:
@@ -263,7 +264,7 @@ def test_prepare_prerequisites_completes_and_persists_state(monkeypatch) -> None
     monkeypatch.setattr(installer, "_command_exists", fake_command_exists)
     monkeypatch.setattr(installer, "_run_install_command", fake_run_install_command)
 
-    response = client.post("/api/installer/prepare-prerequisites")
+    response = client.post("/api/installer/download")
 
     assert response.status_code == 200
     payload = response.json()
@@ -273,10 +274,10 @@ def test_prepare_prerequisites_completes_and_persists_state(monkeypatch) -> None
     assert payload["step"]["status"] == "complete"
 
     status_response = client.get("/api/installer/status")
-    assert status_response.json()["steps"]["prepare-prerequisites"]["status"] == "complete"
+    assert status_response.json()["steps"]["download"]["status"] == "complete"
 
 
-def test_prepare_prerequisites_returns_guided_repair_when_winget_is_missing(
+def test_download_step_returns_guided_repair_when_winget_is_missing(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(
@@ -311,7 +312,7 @@ def test_prepare_prerequisites_returns_guided_repair_when_winget_is_missing(
     )
     monkeypatch.setattr(installer, "_command_exists", lambda _name: False)
 
-    response = client.post("/api/installer/prepare-prerequisites")
+    response = client.post("/api/installer/download")
 
     assert response.status_code == 200
     payload = response.json()
@@ -367,6 +368,7 @@ def test_install_openclaw_requires_ready_environment_and_sets_repair_state(
     }
 
     status_response = client.get("/api/installer/status")
+    assert status_response.json()["steps"]["download"]["status"] == "needs_action"
     assert status_response.json()["steps"]["install-openclaw"]["status"] == "needs_action"
 
 

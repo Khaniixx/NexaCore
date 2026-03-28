@@ -13,6 +13,7 @@ from app.core.command_router import route_user_message
 from app.installer import (
     check_environment,
     configure_ai,
+    download_setup,
     get_installer_status,
     get_supported_models,
     install_openclaw,
@@ -556,8 +557,8 @@ class InstallerEnvironmentResponse(BaseModel):
     step: dict[str, object]
 
 
-class PreparePrerequisitesResponse(BaseModel):
-    """Result of prerequisite preparation."""
+class DownloadSetupResponse(BaseModel):
+    """Result of the canonical Download step."""
 
     attempted: bool
     installed: list[str]
@@ -656,19 +657,29 @@ async def installer_status() -> InstallerStatusResponse:
     response_model=InstallerEnvironmentResponse,
 )
 async def installer_environment_check() -> InstallerEnvironmentResponse:
-    """Detect environment prerequisites for the local desktop shell."""
+    """Legacy environment inspection route for installer diagnostics."""
 
     return InstallerEnvironmentResponse(**check_environment())
 
 
 @router.post(
-    "/installer/prepare-prerequisites",
-    response_model=PreparePrerequisitesResponse,
+    "/installer/download",
+    response_model=DownloadSetupResponse,
 )
-async def installer_prepare_prerequisites() -> PreparePrerequisitesResponse:
-    """Attempt to install missing prerequisites silently where possible."""
+async def installer_download() -> DownloadSetupResponse:
+    """Run the canonical Download step for the local-first setup flow."""
 
-    return PreparePrerequisitesResponse(**prepare_prerequisites())
+    return DownloadSetupResponse(**download_setup())
+
+
+@router.post(
+    "/installer/prepare-prerequisites",
+    response_model=DownloadSetupResponse,
+)
+async def installer_prepare_prerequisites() -> DownloadSetupResponse:
+    """Legacy prerequisite route kept as a compatibility shim."""
+
+    return DownloadSetupResponse(**prepare_prerequisites())
 
 
 @router.post("/installer/install-openclaw", response_model=InstallOpenClawResponse)

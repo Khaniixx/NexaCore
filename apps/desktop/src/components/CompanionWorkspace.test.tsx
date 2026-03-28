@@ -21,20 +21,9 @@ function createInstallerStatus(
       all_ready: true,
     },
     steps: {
-      "environment-check": {
-        id: "environment-check",
-        title: "Environment Check",
-        description: "",
-        status: "complete",
-        message: "",
-        error: null,
-        recovery_instructions: [],
-        can_retry: false,
-        can_repair: false,
-      },
-      "prepare-prerequisites": {
-        id: "prepare-prerequisites",
-        title: "Prepare Prerequisites",
+      download: {
+        id: "download",
+        title: "Download",
         description: "",
         status: "complete",
         message: "",
