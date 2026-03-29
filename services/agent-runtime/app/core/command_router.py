@@ -176,7 +176,23 @@ def route_user_message(message: str) -> RouterResult:
         )
 
     if route == "micro-utilities":
-        result = run_micro_utility(normalized_message)
+        try:
+            result = run_micro_utility(normalized_message)
+        except ValueError:
+            reply = generate_companion_reply(normalized_message)
+            return RouterResult(
+                ok=reply.ok,
+                route="companion-chat",
+                user_message=normalized_message,
+                assistant_response=reply.message,
+                action={
+                    "type": "chat_reply",
+                    "provider": reply.provider,
+                    "model": reply.model,
+                    "fallback_from": "micro-utilities",
+                },
+            )
+
         return RouterResult(
             ok=result["ok"],
             route="micro-utilities",

@@ -37,6 +37,22 @@ def test_run_micro_utility_adds_todo() -> None:
     assert state["todos"][0]["label"] == "buy oat milk"
 
 
+def test_run_micro_utility_parses_suffix_todo_form() -> None:
+    result = run_micro_utility("add buy oat milk to my todo list")
+
+    assert result["ok"] is True
+    assert result["action"] == "created_todo"
+    assert 'buy oat milk' in result["message"]
+
+
+def test_run_micro_utility_parses_shortcut_without_regex() -> None:
+    result = run_micro_utility("run shortcut local-setup")
+
+    assert result["ok"] is False
+    assert result["action"] == "permission_required"
+    assert result["metadata"]["permission"] == "open_url"
+
+
 def test_execute_browser_shortcut_requires_permission() -> None:
     result = run_micro_utility("run shortcut local-setup")
 

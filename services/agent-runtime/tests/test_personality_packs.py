@@ -135,10 +135,10 @@ def make_pack_archive(
     return archive_buffer.getvalue()
 
 
-def make_tavern_card_png() -> bytes:
+def make_tavern_card_png(*, character_name: str = "Imported Friend") -> bytes:
     png_bytes = bytearray(base64.b64decode(PNG_1X1_BASE64))
     tavern_payload = {
-        "name": "Imported Friend",
+        "name": character_name,
         "description": "A calm local companion.",
         "persona": "Helpful and grounded.",
         "first_mes": "Hi. I am here and ready.",
@@ -301,6 +301,22 @@ def test_import_tavern_card_creates_pack_with_local_signature(tmp_path: Path) ->
         manifest_payload["extensions"]["tavern_card"]["unknown_fields"]["unknown_custom_field"]
         == {"mood": "gentle"}
     )
+
+
+def test_import_tavern_card_normalizes_non_ascii_pack_id() -> None:
+    response = client.post(
+        "/api/packs/import-tavern-card",
+        json={
+            "filename": "eva-card.png",
+            "image_base64": base64.b64encode(
+                make_tavern_card_png(character_name="Éva Čaj")
+            ).decode("ascii"),
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["pack"]["id"] == "eva-caj"
+    assert (personality_packs.PACKS_DIR / "eva-caj" / "pack.json").exists()
 
 
 def test_pack_schema_endpoint_returns_schema() -> None:

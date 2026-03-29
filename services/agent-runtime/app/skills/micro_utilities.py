@@ -52,33 +52,23 @@ ALARM_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"^(?:set\s+)?(?:an?\s+)?alarm(?:\s+for|\s+at)?\s+(?P<time>\d{1,2}(?::\d{2})?\s*(?:am|pm)?)$",
     re.IGNORECASE,
 )
-REMINDER_IN_PATTERN: Final[re.Pattern[str]] = re.compile(
-    r"^remind\s+me\s+to\s+(?P<text>.+?)\s+in\s+(?P<amount>\d+)\s*(?P<unit>minute|minutes|min|hour|hours)$",
-    re.IGNORECASE,
-)
-REMINDER_AT_PATTERN: Final[re.Pattern[str]] = re.compile(
-    r"^remind\s+me\s+to\s+(?P<text>.+?)\s+(?:at|for)\s+(?P<time>\d{1,2}(?::\d{2})?\s*(?:am|pm)?)$",
-    re.IGNORECASE,
-)
-TODO_PATTERN: Final[re.Pattern[str]] = re.compile(
-    r"^(?:add|create)\s+(?P<text>.+?)\s+(?:to|on)\s+(?:my\s+)?(?:to-do|todo)\s+list$",
-    re.IGNORECASE,
-)
-TODO_ALT_PATTERN: Final[re.Pattern[str]] = re.compile(
-    r"^(?:add|create)\s+(?:a\s+)?(?:to-do|todo)\s+(?P<text>.+)$",
-    re.IGNORECASE,
-)
-SHORTCUT_PATTERN: Final[re.Pattern[str]] = re.compile(
-    r"^(?:run|launch|open)\s+shortcut\s+(?P<shortcut_id>.+)$",
-    re.IGNORECASE,
-)
-
-
 def _duration_to_minutes(amount: int, unit: str) -> int:
     normalized_unit = unit.lower()
     if normalized_unit in {"minute", "minutes", "min"}:
         return amount
     return amount * 60
+
+
+def _parse_duration_phrase(raw_value: str) -> tuple[int, str]:
+    parts = raw_value.strip().split()
+    if len(parts) != 2 or not parts[0].isdigit():
+        raise ValueError("Time duration must look like 15 minutes or 1 hour.")
+
+    unit = parts[1].lower()
+    if unit not in {"minute", "minutes", "min", "hour", "hours"}:
+        raise ValueError("Time duration must use minutes or hours.")
+
+    return int(parts[0]), unit
 
 
 def _parse_clock_time(raw_time: str) -> datetime:
@@ -176,6 +166,99 @@ def _list_request_response(request_text: str) -> MicroUtilityResult | None:
     return None
 
 
+def _parse_reminder_in_request(request_text: str) -> tuple[str, int, str] | None:
+    prefix = "remind me to "
+    lowered_request = request_text.lower()
+    if not lowered_request.startswith(prefix):
+        return None
+
+    reminder_body = request_text[len(prefix) :].strip()
+    split_index = reminder_body.lower().rfind(" in ")
+    if split_index <= 0:
+        return None
+
+    reminder_text = reminder_body[:split_index].strip()
+    amount, unit = _parse_duration_phrase(reminder_body[split_index + 4 :])
+    if not reminder_text:
+        raise ValueError("Reminder text cannot be empty.")
+
+    return reminder_text, amount, unit
+
+
+def _parse_reminder_at_request(request_text: str) -> tuple[str, str] | None:
+    prefix = "remind me to "
+    lowered_request = request_text.lower()
+    if not lowered_request.startswith(prefix):
+        return None
+
+    reminder_body = request_text[len(prefix) :].strip()
+    for separator in (" at ", " for "):
+        split_index = reminder_body.lower().rfind(separator)
+        if split_index <= 0:
+            continue
+
+        reminder_text = reminder_body[:split_index].strip()
+        raw_time = reminder_body[split_index + len(separator) :].strip()
+        if not reminder_text:
+            raise ValueError("Reminder text cannot be empty.")
+        if not raw_time:
+            raise ValueError("Reminder time cannot be empty.")
+        return reminder_text, raw_time
+
+    return None
+
+
+def _parse_todo_request(request_text: str) -> str | None:
+    lowered_request = request_text.lower()
+
+    for prefix in ("add todo ", "add to-do ", "create todo ", "create to-do "):
+        if lowered_request.startswith(prefix):
+            todo_text = request_text[len(prefix) :].strip()
+            if not todo_text:
+                raise ValueError("To-do text cannot be empty.")
+            return todo_text
+
+    for prefix in ("add a todo ", "add a to-do ", "create a todo ", "create a to-do "):
+        if lowered_request.startswith(prefix):
+            todo_text = request_text[len(prefix) :].strip()
+            if not todo_text:
+                raise ValueError("To-do text cannot be empty.")
+            return todo_text
+
+    for action_prefix in ("add ", "create "):
+        if not lowered_request.startswith(action_prefix):
+            continue
+
+        todo_body = request_text[len(action_prefix) :].strip()
+        lowered_body = todo_body.lower()
+        for suffix in (" to my todo list", " to my to-do list", " on my todo list", " on my to-do list"):
+            if lowered_body.endswith(suffix):
+                todo_text = todo_body[: -len(suffix)].strip()
+                if not todo_text:
+                    raise ValueError("To-do text cannot be empty.")
+                return todo_text
+
+        for suffix in (" to todo list", " to to-do list", " on todo list", " on to-do list"):
+            if lowered_body.endswith(suffix):
+                todo_text = todo_body[: -len(suffix)].strip()
+                if not todo_text:
+                    raise ValueError("To-do text cannot be empty.")
+                return todo_text
+
+    return None
+
+
+def _parse_shortcut_request(request_text: str) -> str | None:
+    lowered_request = request_text.lower()
+    for prefix in ("run shortcut ", "launch shortcut ", "open shortcut "):
+        if lowered_request.startswith(prefix):
+            shortcut_id = request_text[len(prefix) :].strip()
+            if not shortcut_id:
+                raise ValueError("Shortcut name cannot be empty.")
+            return shortcut_id
+    return None
+
+
 def run_micro_utility(request_text: str) -> MicroUtilityResult:
     """Parse a utility request and run the relevant local action."""
 
@@ -224,14 +307,15 @@ def run_micro_utility(request_text: str) -> MicroUtilityResult:
             "metadata": {"utility": alarm},
         }
 
-    reminder_match = REMINDER_IN_PATTERN.match(normalized_request)
-    if reminder_match is not None:
+    reminder_in = _parse_reminder_in_request(normalized_request)
+    if reminder_in is not None:
+        reminder_text, amount, unit = reminder_in
         duration_minutes = _duration_to_minutes(
-            int(reminder_match.group("amount")),
-            reminder_match.group("unit"),
+            amount,
+            unit,
         )
         reminder = create_reminder(
-            text=reminder_match.group("text"),
+            text=reminder_text,
             due_at=datetime.now(UTC) + timedelta(minutes=duration_minutes),
         )
         return {
@@ -242,26 +326,25 @@ def run_micro_utility(request_text: str) -> MicroUtilityResult:
             "metadata": {"utility": reminder},
         }
 
-    reminder_at_match = REMINDER_AT_PATTERN.match(normalized_request)
-    if reminder_at_match is not None:
-        due_at = _parse_clock_time(reminder_at_match.group("time"))
+    reminder_at = _parse_reminder_at_request(normalized_request)
+    if reminder_at is not None:
+        reminder_text, raw_time = reminder_at
+        due_at = _parse_clock_time(raw_time)
         reminder = create_reminder(
-            text=reminder_at_match.group("text"),
+            text=reminder_text,
             due_at=due_at,
         )
         return {
             "ok": True,
             "action": "created_reminder",
             "request": normalized_request,
-            "message": f'I will remind you to {reminder["label"]} at {reminder_at_match.group("time").strip()}.',
+            "message": f'I will remind you to {reminder["label"]} at {raw_time}.',
             "metadata": {"utility": reminder},
         }
 
-    todo_match = TODO_PATTERN.match(normalized_request) or TODO_ALT_PATTERN.match(
-        normalized_request
-    )
-    if todo_match is not None:
-        todo = add_todo(text=todo_match.group("text"))
+    todo_text = _parse_todo_request(normalized_request)
+    if todo_text is not None:
+        todo = add_todo(text=todo_text)
         return {
             "ok": True,
             "action": "created_todo",
@@ -270,9 +353,9 @@ def run_micro_utility(request_text: str) -> MicroUtilityResult:
             "metadata": {"utility": todo},
         }
 
-    shortcut_match = SHORTCUT_PATTERN.match(normalized_request)
-    if shortcut_match is not None:
-        result = execute_shortcut(shortcut_match.group("shortcut_id"))
+    shortcut_id = _parse_shortcut_request(normalized_request)
+    if shortcut_id is not None:
+        result = execute_shortcut(shortcut_id)
         action = result.get("action", {})
         return {
             "ok": bool(result["ok"]),

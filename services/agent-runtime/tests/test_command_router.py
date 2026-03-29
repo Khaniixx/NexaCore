@@ -110,6 +110,44 @@ def test_route_user_message_returns_micro_utility_permission_prompt(
     }
 
 
+def test_route_user_message_falls_back_to_chat_when_micro_utility_parse_fails(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    preferences_file = tmp_path / "preferences.json"
+    monkeypatch.setattr(preferences, "PREFERENCES_FILE", preferences_file)
+    monkeypatch.setattr(
+        micro_utilities,
+        "MICRO_UTILITIES_FILE",
+        tmp_path / "micro_utilities.json",
+    )
+    monkeypatch.setattr(
+        "app.core.command_router.generate_companion_reply",
+        lambda _message: type(
+            "Reply",
+            (),
+            {
+                "ok": True,
+                "message": "I can help with that in chat instead.",
+                "provider": "ollama",
+                "model": "llama3.1:8b-instruct",
+            },
+        )(),
+    )
+
+    result = route_user_message("set a timer please")
+
+    assert result.ok is True
+    assert result.route == "companion-chat"
+    assert result.assistant_response == "I can help with that in chat instead."
+    assert result.action == {
+        "type": "chat_reply",
+        "provider": "ollama",
+        "model": "llama3.1:8b-instruct",
+        "fallback_from": "micro-utilities",
+    }
+
+
 def test_route_user_message_uses_chat_fallback(
     tmp_path: Path,
     monkeypatch,

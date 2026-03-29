@@ -8,6 +8,7 @@ import hashlib
 import json
 import shutil
 import tempfile
+import unicodedata
 import zlib
 import zipfile
 from datetime import UTC, datetime
@@ -724,11 +725,24 @@ def _decode_tavern_payload(text_chunks: dict[str, str]) -> dict[str, object]:
 
 
 def _slugify_pack_id(name: str) -> str:
-    candidate = "".join(
-        character.lower() if character.isalnum() else "-"
-        for character in name.strip()
+    ascii_name = (
+        unicodedata.normalize("NFKD", name.strip())
+        .encode("ascii", "ignore")
+        .decode("ascii")
     )
-    collapsed = "-".join(part for part in candidate.split("-") if part)
+    slug_parts: list[str] = []
+    previous_was_separator = False
+
+    for character in ascii_name.lower():
+        if character.isascii() and character.isalnum():
+            slug_parts.append(character)
+            previous_was_separator = False
+            continue
+        if not previous_was_separator:
+            slug_parts.append("-")
+            previous_was_separator = True
+
+    collapsed = "".join(slug_parts).strip("-")
     return collapsed or "imported-companion"
 
 
