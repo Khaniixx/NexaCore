@@ -224,6 +224,7 @@ def test_installer_environment_check_returns_structured_dependency_state(
 
 def test_download_step_completes_and_persists_state(monkeypatch) -> None:
     state = {"ready": False}
+    monkeypatch.setattr(installer.sys, "platform", "win32")
 
     def fake_environment_checks() -> list[installer.DependencyStatus]:
         if state["ready"]:
@@ -322,6 +323,7 @@ def test_download_step_completes_and_persists_state(monkeypatch) -> None:
 def test_download_step_returns_guided_repair_when_winget_is_missing(
     monkeypatch,
 ) -> None:
+    monkeypatch.setattr(installer.sys, "platform", "win32")
     monkeypatch.setattr(
         installer,
         "_environment_checks",
