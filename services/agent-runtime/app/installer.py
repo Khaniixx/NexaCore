@@ -542,9 +542,11 @@ def _dependency_install_command(label: str) -> list[str] | None:
                 "--accept-package-agreements",
                 "--disable-interactivity",
                 "--override",
-                "--quiet --norestart --wait --installWhileDownloading "
-                "--add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 "
-                "--add Microsoft.VisualStudio.Component.Windows11SDK.22621",
+                (
+                    "--quiet --norestart --wait --installWhileDownloading "
+                    + "--add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 "
+                    + "--add Microsoft.VisualStudio.Component.Windows11SDK.22621"
+                ),
             ],
             "Ollama": [
                 "winget",
@@ -1340,7 +1342,7 @@ def configure_ai(model_name: str) -> dict[str, object]:
         _write_installer_state(state)
 
         if normalized_model_name not in SUPPORTED_LOCAL_MODELS:
-            step = _set_step(
+            _set_step(
                 state,
                 "configure-ai",
                 "failed",

@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import app.installer as installer
 import app.preferences as preferences
 
