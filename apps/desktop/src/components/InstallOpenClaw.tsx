@@ -227,8 +227,14 @@ export function InstallOpenClaw({
         onComplete();
       }
     } catch {
-      const nextStatus = await refreshStatus();
-      setStatusMessage(summarizeStatus(nextStatus));
+      try {
+        const nextStatus = await refreshStatus();
+        setStatusMessage(summarizeStatus(nextStatus));
+      } catch {
+        setStatusMessage(
+          "We could not reconnect to setup just yet. Please try Repair or Retry again in a moment.",
+        );
+      }
     } finally {
       setIsBusy(false);
       setIsHydrated(true);
