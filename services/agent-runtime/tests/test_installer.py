@@ -67,6 +67,23 @@ def test_environment_checks_on_linux_show_local_runtime_dependencies(monkeypatch
     assert environment["missing_runtime_dependencies"] == ["Ollama"]
 
 
+def test_environment_checks_normalize_ollama_not_running_message(monkeypatch) -> None:
+    monkeypatch.setattr(installer.sys, "platform", "win32")
+    monkeypatch.setattr(installer, "_command_exists", lambda name: name == "ollama")
+    monkeypatch.setattr(installer, "_cpp_toolchain_installed", lambda: False)
+    monkeypatch.setattr(
+        installer,
+        "_run_command_for_output",
+        lambda _command: "Warning: could not connect to a running Ollama instance",
+    )
+
+    checks = installer._environment_checks()
+    ollama_check = next(item for item in checks if item["label"] == "Ollama")
+
+    assert ollama_check["installed"] is True
+    assert ollama_check["version"] == "Installed on this PC"
+
+
 def test_download_setup_marks_timeout_as_retryable_failure(monkeypatch) -> None:
     monkeypatch.setattr(
         installer,

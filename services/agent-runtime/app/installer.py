@@ -575,6 +575,20 @@ def _dependency_install_command(label: str) -> list[str] | None:
     return None
 
 
+def _normalize_dependency_version(label: str, version: str | None) -> str | None:
+    if label != "Ollama":
+        return version
+
+    if version is None:
+        return "Installed on this PC"
+
+    normalized_version = version.lower()
+    if "could not connect to a running ollama instance" in normalized_version:
+        return "Installed on this PC"
+
+    return version
+
+
 def _environment_checks() -> list[DependencyStatus]:
     checks: list[DependencyStatus] = []
 
@@ -587,6 +601,9 @@ def _environment_checks() -> list[DependencyStatus]:
             version = _run_command_for_output(version_command)
         elif installed and label == "Windows C++ / MSVC Toolchain":
             version = "Build Tools detected"
+
+        if installed:
+            version = _normalize_dependency_version(label, version)
 
         checks.append(
             {
