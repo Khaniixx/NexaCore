@@ -452,7 +452,7 @@ export function InstallOpenClaw({
           <span className="installer-emblem__core" />
         </div>
         <span className="eyebrow">OpenClaw Setup</span>
-        <h1>Wake your companion on this PC.</h1>
+        <h1>Bring your companion online.</h1>
         <p className="installer-copy__lead">
           {getSetupPromise(activeStepId ?? currentStep?.id ?? null)}
         </p>
