@@ -518,15 +518,15 @@ def _manifest_path_for_pack_dir(pack_dir: Path) -> Path:
 
 def _asset_path_for_pack_dir(pack_dir: Path, asset_path: str) -> Path:
     normalized_asset_path = _normalized_relative_path(asset_path)
-    resolved_pack_dir = pack_dir.resolve()
-    candidate_path = resolved_pack_dir.joinpath(*PurePosixPath(normalized_asset_path).parts)
-    resolved_candidate = candidate_path.resolve()
-    if (
-        os.path.commonpath([os.fspath(resolved_pack_dir), os.fspath(resolved_candidate)])
-        != os.fspath(resolved_pack_dir)
-    ):
+    resolved_pack_dir = os.path.realpath(os.fspath(pack_dir))
+    candidate_path = os.path.join(
+        resolved_pack_dir,
+        *PurePosixPath(normalized_asset_path).parts,
+    )
+    resolved_candidate = os.path.realpath(candidate_path)
+    if os.path.commonpath([resolved_pack_dir, resolved_candidate]) != resolved_pack_dir:
         raise ValueError("Path escapes base directory")
-    return resolved_candidate
+    return Path(resolved_candidate)
 
 
 def _write_install_metadata(pack_dir: Path, *, source: str, archive_name: str) -> None:
