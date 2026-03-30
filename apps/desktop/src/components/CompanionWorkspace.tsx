@@ -712,6 +712,9 @@ export function CompanionWorkspace() {
         "I refreshed OpenClaw and reconnected the local runtime.",
         true,
       );
+      companionEventBus.emit("utilityActionCompleted", {
+        action: "runtime_repaired",
+      });
       setSettingsNotice("OpenClaw was refreshed and reconnected.");
     } catch (error) {
       const detail =
@@ -745,6 +748,9 @@ export function CompanionWorkspace() {
           : nextModelStatus.message,
         true,
       );
+      companionEventBus.emit("utilityActionCompleted", {
+        action: "model_saved",
+      });
     } catch (error) {
       const detail =
         error instanceof Error ? error.message : "Unknown model save error";
@@ -941,7 +947,10 @@ export function CompanionWorkspace() {
       action.type === "created_alarm" ||
       action.type === "created_reminder" ||
       action.type === "created_todo" ||
-      action.type === "shortcut_executed"
+      action.type === "shortcut_executed" ||
+      action.type === "open_app" ||
+      action.type === "open_url" ||
+      action.type === "search_query"
     ) {
       await refreshMicroUtilitiesState();
       companionEventBus.emit("utilityActionCompleted", {

@@ -44,16 +44,36 @@ export type CompanionTransition = {
 
 function getTalkingDurationMs(messageLength: number): number {
   const normalizedLength = Math.max(0, messageLength);
-  return Math.min(2800, 1200 + Math.round(normalizedLength * 9));
+  return Math.min(2500, 900 + Math.round(normalizedLength * 7));
 }
 
 function getReactionDurationMs(action: string): number {
+  if (action === "stream_event") {
+    return 1500;
+  }
+
   if (action === "created_timer" || action === "created_alarm") {
-    return 1350;
+    return 1450;
   }
 
   if (action === "created_reminder" || action === "created_todo") {
-    return 1200;
+    return 1250;
+  }
+
+  if (action === "shortcut_executed" || action === "open_app") {
+    return 1125;
+  }
+
+  if (action === "open_url" || action === "search_query") {
+    return 1080;
+  }
+
+  if (action === "capture_clipboard") {
+    return 980;
+  }
+
+  if (action === "runtime_repaired" || action === "model_saved") {
+    return 1180;
   }
 
   return 1000;
