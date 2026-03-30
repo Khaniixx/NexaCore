@@ -516,17 +516,28 @@ def _manifest_path_for_pack_dir(pack_dir: Path) -> Path:
     return pack_dir / "pack.json"
 
 
+def _asset_file_map(pack_dir: Path) -> dict[str, Path]:
+    resolved_pack_dir = pack_dir.resolve()
+    asset_paths: dict[str, Path] = {}
+    for candidate in resolved_pack_dir.rglob("*"):
+        if not candidate.is_file():
+            continue
+        resolved_candidate = candidate.resolve()
+        if os.path.commonpath(
+            [os.fspath(resolved_pack_dir), os.fspath(resolved_candidate)]
+        ) != os.fspath(resolved_pack_dir):
+            continue
+        relative_candidate = resolved_candidate.relative_to(resolved_pack_dir).as_posix()
+        asset_paths[relative_candidate] = resolved_candidate
+    return asset_paths
+
+
 def _asset_path_for_pack_dir(pack_dir: Path, asset_path: str) -> Path:
     normalized_asset_path = _normalized_relative_path(asset_path)
-    resolved_pack_dir = os.path.realpath(os.fspath(pack_dir))
-    candidate_path = os.path.join(
-        resolved_pack_dir,
-        *PurePosixPath(normalized_asset_path).parts,
-    )
-    resolved_candidate = os.path.realpath(candidate_path)
-    if os.path.commonpath([resolved_pack_dir, resolved_candidate]) != resolved_pack_dir:
-        raise ValueError("Path escapes base directory")
-    return Path(resolved_candidate)
+    try:
+        return _asset_file_map(pack_dir)[normalized_asset_path]
+    except KeyError as error:
+        raise ValueError("Referenced asset was not found in the pack.") from error
 
 
 def _write_install_metadata(pack_dir: Path, *, source: str, archive_name: str) -> None:
