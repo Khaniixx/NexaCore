@@ -87,6 +87,25 @@ function getActivePackFromResponse(packs: InstalledPack[]): InstalledPack | null
   return packs.find((pack) => pack.active) ?? null;
 }
 
+function getAmbientDeskCue(state: CompanionState, companionTitle: string): string {
+  if (state === "idle") {
+    return `The desk is quiet. ${companionTitle} is nearby and ready when you are.`;
+  }
+  if (state === "listening") {
+    return `${companionTitle} is leaning in and keeping the next step close.`;
+  }
+  if (state === "thinking") {
+    return `${companionTitle} is tracing the local thread before answering.`;
+  }
+  if (state === "talking") {
+    return `${companionTitle} is staying close while the thread is active.`;
+  }
+  if (state === "reaction") {
+    return `${companionTitle} perked up at a small cue on the desk.`;
+  }
+  return `${companionTitle} needs a breath while the local thread settles.`;
+}
+
 export function CompanionWorkspace() {
   const [initialSession] = useState(() => loadCompanionSession(starterMessages));
   const [companionState, setCompanionState] = useState<CompanionState>(
@@ -1127,6 +1146,7 @@ export function CompanionWorkspace() {
             : companionState === "reaction"
               ? "Reacting to a timer, shortcut, or small cue."
               : "I need a little help from the local runtime.";
+  const ambientDeskCue = getAmbientDeskCue(companionState, companionTitle);
   const showsStarterWelcome =
     messages.length === 1 &&
     messages[0]?.id === 1 &&
@@ -1182,6 +1202,10 @@ export function CompanionWorkspace() {
           <p className="stage-panel__note">
             <strong>Right now</strong>
             <span>{companionStateSummary}</span>
+          </p>
+          <p className="stage-panel__ambient" aria-live="polite">
+            <strong>Desk tone</strong>
+            <span>{ambientDeskCue}</span>
           </p>
         </div>
         {activeStreamEvent ? (

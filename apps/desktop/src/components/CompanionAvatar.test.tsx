@@ -21,8 +21,10 @@ describe("CompanionAvatar", () => {
     const avatar = screen.getByLabelText("Sunrise avatar is idle");
     expect(avatar).toHaveAttribute("data-animation", "sunrise-idle");
     expect(avatar).toHaveAttribute("data-idle-loop", "true");
+    expect(avatar).toHaveAttribute("data-presence-cue", "Quietly nearby");
     expect(avatar).toHaveAttribute("data-voice-clip", "sunrise-idle-loop");
     expect(screen.getByText(/sunrise-idle animation/i)).toBeInTheDocument();
+    expect(screen.getByText("Quietly nearby")).toBeInTheDocument();
   });
 
   it("exposes the correct talking animation and voice cue", () => {
@@ -45,7 +47,9 @@ describe("CompanionAvatar", () => {
     const avatar = screen.getByLabelText("Bloom avatar is talking");
     expect(avatar).toHaveAttribute("data-animation", "bloom-speak");
     expect(avatar).toHaveAttribute("data-idle-loop", "false");
+    expect(avatar).toHaveAttribute("data-presence-cue", "With you now");
     expect(avatar).toHaveAttribute("data-voice-clip", "voice/bloom-talk.ogg");
     expect(screen.getByText(/bloom-speak animation/i)).toBeInTheDocument();
+    expect(screen.getByText("With you now")).toBeInTheDocument();
   });
 });

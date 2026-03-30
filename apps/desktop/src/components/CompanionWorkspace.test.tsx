@@ -991,6 +991,9 @@ describe("CompanionWorkspace", () => {
     expect(screen.getAllByText("Runtime ready").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Sunrise").length).toBeGreaterThan(0);
     expect(
+      screen.getByText("The desk is quiet. Sunrise is nearby and ready when you are."),
+    ).toBeInTheDocument();
+    expect(
       screen.getByRole("button", { name: "Check in with Sunrise" }),
     ).toBeInTheDocument();
     expect(
