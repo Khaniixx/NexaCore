@@ -29,7 +29,7 @@ describe("companionStateMachine", () => {
     );
 
     expect(transition.state).toBe("reaction");
-    expect(transition.durationMs).toBe(1350);
+    expect(transition.durationMs).toBe(1450);
   });
 
   it("keeps runtime failures in the error state path", () => {
@@ -67,5 +67,30 @@ describe("companionStateMachine", () => {
     expect(shortReply.state).toBe("talking");
     expect(longReply.state).toBe("talking");
     expect(longReply.durationMs).toBeGreaterThan(shortReply.durationMs ?? 0);
+  });
+
+  it("uses longer reaction timing for stream events than clipboard captures", () => {
+    const streamTransition = transitionCompanionState(
+      { type: "utilityActionCompleted", action: "stream_event" },
+      {
+        draft: "",
+        focused: true,
+        isSending: false,
+      },
+    );
+    const clipboardTransition = transitionCompanionState(
+      { type: "utilityActionCompleted", action: "capture_clipboard" },
+      {
+        draft: "",
+        focused: true,
+        isSending: false,
+      },
+    );
+
+    expect(streamTransition.durationMs).toBe(1500);
+    expect(clipboardTransition.durationMs).toBe(980);
+    expect(streamTransition.durationMs).toBeGreaterThan(
+      clipboardTransition.durationMs ?? 0,
+    );
   });
 });
