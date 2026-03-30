@@ -506,9 +506,13 @@ def _metadata_path(pack_dir: Path) -> Path:
 
 def _resolve_within(base_dir: Path, candidate: Path) -> Path:
     resolved_base_dir = base_dir.resolve()
-    resolved_candidate = candidate.resolve()
-    resolved_candidate.relative_to(resolved_base_dir)
-    return resolved_candidate
+    candidate_path = candidate if candidate.is_absolute() else resolved_base_dir / candidate
+    resolved_candidate = candidate_path.resolve()
+    try:
+        relative_path = resolved_candidate.relative_to(resolved_base_dir)
+    except ValueError as error:
+        raise ValueError("Path escapes base directory") from error
+    return resolved_base_dir / relative_path
 
 
 def _pack_dir_for_id(pack_id: str) -> Path:
