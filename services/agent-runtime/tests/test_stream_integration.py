@@ -14,6 +14,16 @@ def temp_stream_state(tmp_path, monkeypatch) -> None:
         "STREAM_INTEGRATION_STATE_FILE",
         tmp_path / "stream_integration.json",
     )
+    monkeypatch.setattr(
+        stream_integration,
+        "STREAM_INTEGRATION_SECRET_FILE",
+        tmp_path / "stream_integration.secret",
+    )
+    monkeypatch.setattr(
+        stream_integration,
+        "STREAM_INTEGRATION_SECRET_KEY_FILE",
+        tmp_path / "stream_integration.key",
+    )
 
 
 def test_update_stream_settings_disables_click_through_when_overlay_is_off() -> None:
@@ -63,6 +73,31 @@ def test_process_twitch_webhook_validates_signature_when_secret_is_present() -> 
     assert result["kind"] == "event"
     assert result["event"]["type"] == "donation"
     assert result["event"]["amount_display"] == "500 bits"
+
+
+def test_update_stream_settings_masks_secret_in_state_file_and_response() -> None:
+    settings = stream_integration.update_stream_settings(
+        enabled=True,
+        twitch_webhook_secret="topsecret",
+    )
+
+    assert settings["twitch_webhook_secret"] == ""
+    assert settings["has_twitch_webhook_secret"] is True
+    state_payload = stream_integration.STREAM_INTEGRATION_STATE_FILE.read_text(
+        encoding="utf-8"
+    )
+    assert "topsecret" not in state_payload
+    assert '"has_twitch_webhook_secret": true' in state_payload
+    assert stream_integration.STREAM_INTEGRATION_SECRET_FILE.exists() is True
+
+
+def test_update_stream_settings_clears_saved_secret() -> None:
+    stream_integration.update_stream_settings(twitch_webhook_secret="topsecret")
+
+    settings = stream_integration.update_stream_settings(twitch_webhook_secret="")
+
+    assert settings["has_twitch_webhook_secret"] is False
+    assert stream_integration.STREAM_INTEGRATION_SECRET_FILE.exists() is False
 
 
 def test_ingest_youtube_event_rejects_unsupported_type() -> None:

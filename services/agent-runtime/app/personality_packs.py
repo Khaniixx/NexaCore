@@ -6,6 +6,7 @@ import base64
 import binascii
 import hashlib
 import json
+import re
 import shutil
 import tempfile
 import unicodedata
@@ -59,6 +60,7 @@ LOCAL_IMPORTER_PUBLIC_KEY: Final[dict[str, str]] = {
     "n": _to_base64url(LOCAL_IMPORTER_RSA_MODULUS),
     "e": _to_base64url(LOCAL_IMPORTER_RSA_EXPONENT),
 }
+PACK_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
 def _normalized_relative_path(value: str) -> str:
@@ -502,6 +504,28 @@ def _metadata_path(pack_dir: Path) -> Path:
     return pack_dir / PACK_INSTALL_METADATA_NAME
 
 
+def _resolve_within(base_dir: Path, candidate: Path) -> Path:
+    resolved_base_dir = base_dir.resolve()
+    resolved_candidate = candidate.resolve()
+    resolved_candidate.relative_to(resolved_base_dir)
+    return resolved_candidate
+
+
+def _pack_dir_for_id(pack_id: str) -> Path:
+    normalized_pack_id = pack_id.strip().lower()
+    if not PACK_ID_PATTERN.fullmatch(normalized_pack_id):
+        raise ValueError(f"Invalid pack id: {pack_id}")
+    return _resolve_within(PACKS_DIR, PACKS_DIR / normalized_pack_id)
+
+
+def _manifest_path_for_pack_dir(pack_dir: Path) -> Path:
+    return _resolve_within(pack_dir, pack_dir / "pack.json")
+
+
+def _asset_path_for_pack_dir(pack_dir: Path, asset_path: str) -> Path:
+    return _resolve_within(pack_dir, pack_dir / _normalized_relative_path(asset_path))
+
+
 def _write_install_metadata(pack_dir: Path, *, source: str, archive_name: str) -> None:
     metadata = PackInstallMetadata(
         installed_at=datetime.now(UTC).isoformat(),
@@ -515,7 +539,7 @@ def _write_install_metadata(pack_dir: Path, *, source: str, archive_name: str) -
 
 
 def _read_install_metadata(pack_dir: Path) -> PackInstallMetadata | None:
-    metadata_path = _metadata_path(pack_dir)
+    metadata_path = _resolve_within(pack_dir, _metadata_path(pack_dir))
     if not metadata_path.exists():
         return None
     try:
@@ -531,7 +555,7 @@ def _icon_data_url(pack_dir: Path, manifest: PackManifest) -> str | None:
     if icon_path is None:
         return None
 
-    resolved_icon_path = (pack_dir / icon_path).resolve()
+    resolved_icon_path = _asset_path_for_pack_dir(pack_dir, icon_path)
     if not resolved_icon_path.exists() or not resolved_icon_path.is_file():
         return None
 
@@ -579,8 +603,11 @@ def get_active_pack_profile() -> dict[str, object]:
     if active_pack_id is None:
         return _default_personality_profile()
 
-    pack_dir = PACKS_DIR / active_pack_id
-    manifest_path = pack_dir / "pack.json"
+    try:
+        pack_dir = _pack_dir_for_id(active_pack_id)
+        manifest_path = _manifest_path_for_pack_dir(pack_dir)
+    except ValueError:
+        return _default_personality_profile()
     if not manifest_path.exists():
         return _default_personality_profile()
 
@@ -610,8 +637,8 @@ def _install_from_directory(
     manifest, _raw_manifest = _load_manifest_from_directory(pack_root)
     PACKS_DIR.mkdir(parents=True, exist_ok=True)
 
-    destination_dir = PACKS_DIR / manifest.id
-    staging_dir = PACKS_DIR / f".{manifest.id}.tmp"
+    destination_dir = _pack_dir_for_id(manifest.id)
+    staging_dir = _resolve_within(PACKS_DIR, PACKS_DIR / f".{manifest.id}.tmp")
     if staging_dir.exists():
         shutil.rmtree(staging_dir)
     if destination_dir.exists():
@@ -642,7 +669,10 @@ def list_installed_packs() -> dict[str, object]:
         summaries: list[InstalledPackSummary] = []
 
         for pack_dir in sorted(path for path in PACKS_DIR.iterdir() if path.is_dir()):
-            manifest_path = pack_dir / "pack.json"
+            try:
+                manifest_path = _manifest_path_for_pack_dir(pack_dir)
+            except ValueError:
+                continue
             if not manifest_path.exists():
                 continue
             try:
@@ -709,8 +739,8 @@ def select_active_pack(pack_id: str) -> dict[str, object]:
         raise ValueError("Pack id is required.")
 
     with _pack_lock:
-        pack_dir = PACKS_DIR / normalized_pack_id
-        manifest_path = pack_dir / "pack.json"
+        pack_dir = _pack_dir_for_id(normalized_pack_id)
+        manifest_path = _manifest_path_for_pack_dir(pack_dir)
         if not manifest_path.exists():
             raise ValueError(f"Installed pack not found: {normalized_pack_id}")
 

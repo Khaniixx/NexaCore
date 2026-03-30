@@ -235,6 +235,7 @@ class StreamSettingsResponse(BaseModel):
     click_through_enabled: bool
     twitch_channel_name: str
     twitch_webhook_secret: str
+    has_twitch_webhook_secret: bool
     youtube_live_chat_id: str
     reaction_preferences: StreamReactionPreferencesResponse
 

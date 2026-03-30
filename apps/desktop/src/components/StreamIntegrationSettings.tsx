@@ -120,7 +120,11 @@ export function StreamIntegrationSettings({
               <input
                 id="twitch-secret"
                 className="memory-summary-card__title-input"
-                placeholder="local webhook secret"
+                placeholder={
+                  draft.has_twitch_webhook_secret
+                    ? "saved locally — enter a new secret to replace it"
+                    : "local webhook secret"
+                }
                 value={draft.twitch_webhook_secret}
                 onChange={(event) => {
                   setDraft((current) =>
@@ -133,6 +137,11 @@ export function StreamIntegrationSettings({
                   );
                 }}
               />
+              {draft.has_twitch_webhook_secret ? (
+                <p className="settings-card__hint">
+                  A webhook secret is already saved locally. Leave this blank to keep it.
+                </p>
+              ) : null}
             </>
           ) : (
             <>
