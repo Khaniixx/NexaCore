@@ -1380,3 +1380,12 @@ def test_youtube_event_route_accepts_super_chat() -> None:
     assert response.json()["type"] == "super_chat"
     assert response.json()["amount_display"] == "$10.00"
     assert response.json()["actor_name"] == "Jordan"
+
+
+def test_pack_selection_rejects_invalid_pack_id_shape() -> None:
+    response = client.put(
+        "/api/packs/active",
+        json={"pack_id": "../outside"},
+    )
+
+    assert response.status_code == 422

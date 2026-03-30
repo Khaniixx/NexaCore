@@ -41,6 +41,7 @@ from app.marketplace import (
     list_marketplace_listings,
 )
 from app.personality_packs import (
+    PACK_ID_PATTERN,
     get_pack_manifest_schema,
     import_tavern_card,
     install_pack_archive,
@@ -429,9 +430,14 @@ class PackInstallResponse(BaseModel):
 class PackSelectionRequest(BaseModel):
     """Request payload for choosing the active pack."""
 
-    pack_id: Annotated[str, StringConstraints(strip_whitespace=True, to_lower=True)] = (
-        Field(..., min_length=1)
-    )
+    pack_id: Annotated[
+        str,
+        StringConstraints(
+            strip_whitespace=True,
+            to_lower=True,
+            pattern=PACK_ID_PATTERN.pattern,
+        ),
+    ] = Field(..., min_length=1)
 
 
 class PackSelectionResponse(BaseModel):
