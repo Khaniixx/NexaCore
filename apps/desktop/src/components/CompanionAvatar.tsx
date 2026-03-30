@@ -44,6 +44,25 @@ function getVoiceCue(
   return state === "idle" ? `${voiceId}-idle-loop` : `${voiceId}-${state}`;
 }
 
+function getPresenceCue(state: CompanionState): string {
+  if (state === "idle") {
+    return "Quietly nearby";
+  }
+  if (state === "listening") {
+    return "Leaning in";
+  }
+  if (state === "thinking") {
+    return "Holding the thread";
+  }
+  if (state === "talking") {
+    return "With you now";
+  }
+  if (state === "reaction") {
+    return "Perking up";
+  }
+  return "Needs a breath";
+}
+
 export function CompanionAvatar({
   state,
   displayName = "Aster",
@@ -53,6 +72,7 @@ export function CompanionAvatar({
   const stateLabel = state.charAt(0).toUpperCase() + state.slice(1);
   const animationName = getAnimationName(state, avatarConfig);
   const voiceCue = getVoiceCue(state, avatarConfig, voiceConfig);
+  const presenceCue = getPresenceCue(state);
 
   return (
     <div
@@ -61,6 +81,7 @@ export function CompanionAvatar({
       aria-label={`${displayName} avatar is ${state}`}
       data-animation={animationName}
       data-idle-loop={state === "idle" ? "true" : "false"}
+      data-presence-cue={presenceCue}
       data-voice-clip={voiceCue}
     >
       <div className="avatar-aura" />
@@ -76,8 +97,11 @@ export function CompanionAvatar({
           <span className={`avatar-mouth avatar-mouth--${state}`} />
         </div>
       </div>
+      <div className={`avatar-whisper avatar-whisper--${state}`} aria-hidden="true">
+        {presenceCue}
+      </div>
       <span className="avatar-screen-reader">
-        {displayName} is using the {animationName} animation with the {voiceCue} cue.
+        {displayName} is using the {animationName} animation with the {voiceCue} cue and feels {presenceCue.toLowerCase()}.
       </span>
       <div className="avatar-status">
         <span className="avatar-status__label">State</span>
