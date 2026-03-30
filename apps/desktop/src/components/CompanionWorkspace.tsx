@@ -210,13 +210,15 @@ export function CompanionWorkspace() {
   const seenStreamEventIdsRef = useRef<Set<number>>(new Set());
   const seenUtilityAlertIdsRef = useRef<Set<number>>(new Set());
   const activePackRef = useRef<InstalledPack | null>(null);
+  const desktopPresencePinned =
+    (presenceStatus?.enabled ?? false) && presenceStatus?.anchor !== "workspace";
   const overlayActive = Boolean(
-    (presenceStatus?.enabled ?? false) ||
+    desktopPresencePinned ||
       (streamState?.settings.overlay_enabled ?? false),
   );
   const clickThroughActive = Boolean(
     !isSettingsOpen &&
-      ((presenceStatus?.enabled && presenceStatus.click_through_enabled) ||
+      ((desktopPresencePinned && presenceStatus?.click_through_enabled) ||
         (streamState?.settings.overlay_enabled &&
           streamState.settings.click_through_enabled)),
   );
@@ -425,8 +427,9 @@ export function CompanionWorkspace() {
     void applyOverlayWindowState({
       enabled: overlayActive,
       clickThroughEnabled: clickThroughActive,
+      anchor: presenceStatus?.enabled ? presenceStatus.anchor : undefined,
     });
-  }, [clickThroughActive, overlayActive]);
+  }, [clickThroughActive, overlayActive, presenceStatus?.anchor, presenceStatus?.enabled]);
 
   useEffect(() => {
     if (!clickThroughActive) {
@@ -441,7 +444,7 @@ export function CompanionWorkspace() {
       setSettingsNotice("Desktop click-through was turned off.");
       void (async () => {
         try {
-          if (presenceStatus?.enabled && presenceStatus.click_through_enabled) {
+          if (desktopPresencePinned && presenceStatus?.click_through_enabled) {
             const response = await fetch(`${API_BASE_URL}/api/preferences/presence`, {
               method: "PUT",
               headers: {
@@ -486,8 +489,8 @@ export function CompanionWorkspace() {
     };
   }, [
     clickThroughActive,
+    desktopPresencePinned,
     presenceStatus?.click_through_enabled,
-    presenceStatus?.enabled,
     streamState,
   ]);
 
@@ -1686,8 +1689,16 @@ export function CompanionWorkspace() {
                     disabled={isSavingPresence}
                     type="checkbox"
                     onChange={(event) => {
+                      const enabled = event.target.checked;
                       void handleSavePresenceSettings({
-                        enabled: event.target.checked,
+                        enabled,
+                        click_through_enabled: enabled
+                          ? presenceStatus?.click_through_enabled
+                          : false,
+                        anchor:
+                          enabled && (presenceStatus?.anchor ?? "workspace") === "workspace"
+                            ? "desktop-right"
+                            : presenceStatus?.anchor,
                       });
                     }}
                   />
@@ -1713,8 +1724,17 @@ export function CompanionWorkspace() {
                     disabled={isSavingPresence}
                     value={presenceStatus?.anchor ?? "desktop-right"}
                     onChange={(event) => {
+                      const nextAnchor = event.target.value as PresenceStatus["anchor"];
                       void handleSavePresenceSettings({
-                        anchor: event.target.value as PresenceStatus["anchor"],
+                        anchor: nextAnchor,
+                        enabled:
+                          nextAnchor === "workspace"
+                            ? false
+                            : (presenceStatus?.enabled ?? false),
+                        click_through_enabled:
+                          nextAnchor === "workspace"
+                            ? false
+                            : presenceStatus?.click_through_enabled,
                       });
                     }}
                   >

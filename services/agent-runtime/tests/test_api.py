@@ -1005,6 +1005,26 @@ def test_presence_preferences_can_enable_click_through(temp_state_files: Path) -
     assert '"click_through_enabled": true' in stored
 
 
+def test_presence_preferences_workspace_anchor_is_not_pinned() -> None:
+    update_response = client.put(
+        "/api/preferences/presence",
+        json={
+            "enabled": True,
+            "click_through_enabled": True,
+            "anchor": "workspace",
+        },
+    )
+
+    assert update_response.status_code == 200
+    assert update_response.json() == {
+        "enabled": True,
+        "click_through_enabled": False,
+        "anchor": "workspace",
+        "state": "workspace",
+        "message": "Aster is staying in the normal workspace until you pin the desktop presence.",
+    }
+
+
 def test_update_open_url_permission_persists_value(
     temp_state_files: Path,
 ) -> None:

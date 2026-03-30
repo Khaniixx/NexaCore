@@ -755,13 +755,14 @@ def _voice_settings_payload() -> VoiceSettingsResponse:
 def _presence_settings_payload() -> PresenceSettingsResponse:
     settings = get_presence_settings()
     enabled = bool(settings["enabled"])
-    click_through_enabled = bool(settings["click_through_enabled"])
     anchor = str(settings["anchor"])
+    pinned_enabled = enabled and anchor != "workspace"
+    click_through_enabled = pinned_enabled and bool(settings["click_through_enabled"])
 
-    if enabled and click_through_enabled:
+    if pinned_enabled and click_through_enabled:
         state = "click-through"
         message = "Aster is pinned above the desktop and currently letting clicks pass through."
-    elif enabled:
+    elif pinned_enabled:
         state = "pinned"
         message = "Aster is pinned above the desktop and ready to stay nearby."
     else:
