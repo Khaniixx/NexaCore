@@ -12,6 +12,7 @@ export type StreamSettings = {
   click_through_enabled: boolean;
   twitch_channel_name: string;
   twitch_webhook_secret: string;
+  has_twitch_webhook_secret: boolean;
   youtube_live_chat_id: string;
   reaction_preferences: StreamReactionPreferences;
 };

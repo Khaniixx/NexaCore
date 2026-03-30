@@ -6,6 +6,7 @@ import json
 import subprocess
 from pathlib import Path
 from typing import TypedDict
+from urllib.parse import urlparse
 
 
 class OpenUrlResult(TypedDict):
@@ -22,8 +23,13 @@ SCRIPT_PATH = Path(__file__).with_suffix(".js")
 def open_url(url: str) -> OpenUrlResult:
     """Open a URL in the default system browser."""
 
+    normalized_url = url.strip()
+    parsed_url = urlparse(normalized_url)
+    if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+        raise ValueError("Only http and https URLs are supported.")
+
     completed_process = subprocess.run(
-        ["node", str(SCRIPT_PATH), url],
+        ["node", str(SCRIPT_PATH), normalized_url],
         check=False,
         capture_output=True,
         text=True,

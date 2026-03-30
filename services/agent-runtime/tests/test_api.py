@@ -40,6 +40,16 @@ def temp_state_files(tmp_path, monkeypatch) -> Path:
         tmp_path / "stream_integration.json",
     )
     monkeypatch.setattr(
+        stream_integration,
+        "STREAM_INTEGRATION_SECRET_FILE",
+        tmp_path / "stream_integration.secret",
+    )
+    monkeypatch.setattr(
+        stream_integration,
+        "STREAM_INTEGRATION_SECRET_KEY_FILE",
+        tmp_path / "stream_integration.key",
+    )
+    monkeypatch.setattr(
         app_launcher_skill,
         "APP_LAUNCHER_STATE_FILE",
         tmp_path / "app_launcher_state.json",
@@ -1238,6 +1248,7 @@ def test_stream_state_returns_defaults() -> None:
             "click_through_enabled": False,
             "twitch_channel_name": "",
             "twitch_webhook_secret": "",
+            "has_twitch_webhook_secret": False,
             "youtube_live_chat_id": "",
             "reaction_preferences": {
                 "new_subscriber": True,
@@ -1272,11 +1283,32 @@ def test_stream_settings_update_persists_overlay_and_reactions() -> None:
     assert response.json()["overlay_enabled"] is True
     assert response.json()["click_through_enabled"] is True
     assert response.json()["youtube_live_chat_id"] == "abc123"
+    assert response.json()["has_twitch_webhook_secret"] is False
     assert response.json()["reaction_preferences"]["super_chat"] is False
 
     state_response = client.get("/api/stream/state")
     assert state_response.status_code == 200
     assert state_response.json()["settings"]["provider"] == "youtube"
+
+
+def test_stream_settings_update_masks_saved_twitch_secret() -> None:
+    response = client.put(
+        "/api/stream/settings",
+        json={
+            "enabled": True,
+            "provider": "twitch",
+            "twitch_webhook_secret": "topsecret",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["twitch_webhook_secret"] == ""
+    assert response.json()["has_twitch_webhook_secret"] is True
+
+    state_response = client.get("/api/stream/state")
+    assert state_response.status_code == 200
+    assert state_response.json()["settings"]["twitch_webhook_secret"] == ""
+    assert state_response.json()["settings"]["has_twitch_webhook_secret"] is True
 
 
 def test_preview_stream_event_returns_structured_event() -> None:
@@ -1348,3 +1380,12 @@ def test_youtube_event_route_accepts_super_chat() -> None:
     assert response.json()["type"] == "super_chat"
     assert response.json()["amount_display"] == "$10.00"
     assert response.json()["actor_name"] == "Jordan"
+
+
+def test_pack_selection_rejects_invalid_pack_id_shape() -> None:
+    response = client.put(
+        "/api/packs/active",
+        json={"pack_id": "../outside"},
+    )
+
+    assert response.status_code == 422

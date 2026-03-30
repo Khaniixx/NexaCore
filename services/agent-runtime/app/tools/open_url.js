@@ -10,8 +10,8 @@ function resolveTarget(url) {
   if (process.platform === "win32") {
     return {
       normalizedUrl,
-      command: "cmd",
-      args: ["/c", "start", "", normalizedUrl],
+      command: "explorer.exe",
+      args: [normalizedUrl],
     };
   }
 

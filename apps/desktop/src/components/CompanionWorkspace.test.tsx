@@ -191,6 +191,7 @@ function createFetchMock(
       click_through_enabled: false,
       twitch_channel_name: "",
       twitch_webhook_secret: "",
+      has_twitch_webhook_secret: false,
       youtube_live_chat_id: "",
       reaction_preferences: {
         new_subscriber: true,

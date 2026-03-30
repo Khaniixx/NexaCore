@@ -238,6 +238,11 @@ def test_select_active_pack_switches_between_installed_packs() -> None:
     assert select_response.json()["pack"]["active"] is True
 
 
+def test_select_active_pack_rejects_path_traversal_input() -> None:
+    with pytest.raises(ValueError, match="Invalid pack id"):
+        personality_packs.select_active_pack("../outside")
+
+
 def test_install_pack_rejects_unsupported_capability() -> None:
     archive_bytes = make_pack_archive(
         required_capabilities=[

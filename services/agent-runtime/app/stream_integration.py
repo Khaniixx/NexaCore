@@ -5,13 +5,18 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import os
+import secrets
 from datetime import UTC, datetime
+from pathlib import Path
 from threading import Lock
 from typing import Final, Literal, TypedDict
 
 from app.runtime_paths import runtime_data_path
 
 STREAM_INTEGRATION_STATE_FILE = runtime_data_path("stream_integration.json")
+STREAM_INTEGRATION_SECRET_FILE = runtime_data_path("stream_integration.secret")
+STREAM_INTEGRATION_SECRET_KEY_FILE = runtime_data_path("stream_integration.key")
 MAX_STREAM_EVENTS: Final[int] = 20
 StreamProvider = Literal["twitch", "youtube"]
 StreamEventType = Literal[
@@ -36,6 +41,7 @@ class StreamSettings(TypedDict):
     click_through_enabled: bool
     twitch_channel_name: str
     twitch_webhook_secret: str
+    has_twitch_webhook_secret: bool
     youtube_live_chat_id: str
     reaction_preferences: StreamReactionPreferences
 
@@ -89,6 +95,7 @@ def _default_settings() -> StreamSettings:
         "click_through_enabled": False,
         "twitch_channel_name": "",
         "twitch_webhook_secret": "",
+        "has_twitch_webhook_secret": False,
         "youtube_live_chat_id": "",
         "reaction_preferences": _default_reaction_preferences(),
     }
@@ -111,6 +118,82 @@ def _ensure_state_file() -> None:
         json.dumps(_default_state(), indent=2),
         encoding="utf-8",
     )
+
+
+def _write_private_bytes(path: Path, payload: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if os.name == "nt":
+        path.write_bytes(payload)
+        return
+
+    file_descriptor = os.open(
+        path,
+        os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
+        0o600,
+    )
+    try:
+        with os.fdopen(file_descriptor, "wb") as file_handle:
+            file_handle.write(payload)
+    except Exception:
+        os.close(file_descriptor)
+        raise
+
+
+def _stream_secret_key() -> bytes:
+    if STREAM_INTEGRATION_SECRET_KEY_FILE.exists():
+        return STREAM_INTEGRATION_SECRET_KEY_FILE.read_bytes()
+
+    key = secrets.token_bytes(32)
+    _write_private_bytes(STREAM_INTEGRATION_SECRET_KEY_FILE, key)
+    return key
+
+
+def _derive_keystream(*, key: bytes, nonce: bytes, length: int) -> bytes:
+    blocks: list[bytes] = []
+    counter = 0
+    while sum(len(block) for block in blocks) < length:
+        counter_bytes = counter.to_bytes(4, "big")
+        blocks.append(hashlib.sha256(key + nonce + counter_bytes).digest())
+        counter += 1
+    return b"".join(blocks)[:length]
+
+
+def _xor_bytes(left: bytes, right: bytes) -> bytes:
+    return bytes(left_byte ^ right_byte for left_byte, right_byte in zip(left, right))
+
+
+def _store_twitch_secret(secret: str) -> None:
+    secret_bytes = secret.encode("utf-8")
+    key = _stream_secret_key()
+    nonce = secrets.token_bytes(16)
+    cipher_text = _xor_bytes(secret_bytes, _derive_keystream(key=key, nonce=nonce, length=len(secret_bytes)))
+    auth_tag = hmac.new(key, nonce + cipher_text, hashlib.sha256).digest()
+    _write_private_bytes(STREAM_INTEGRATION_SECRET_FILE, nonce + auth_tag + cipher_text)
+
+
+def _load_twitch_secret() -> str:
+    if not STREAM_INTEGRATION_SECRET_FILE.exists():
+        return ""
+
+    payload = STREAM_INTEGRATION_SECRET_FILE.read_bytes()
+    if len(payload) < 48:
+        return ""
+
+    nonce = payload[:16]
+    auth_tag = payload[16:48]
+    cipher_text = payload[48:]
+    key = _stream_secret_key()
+    expected_tag = hmac.new(key, nonce + cipher_text, hashlib.sha256).digest()
+    if not hmac.compare_digest(expected_tag, auth_tag):
+        return ""
+
+    plain_text = _xor_bytes(cipher_text, _derive_keystream(key=key, nonce=nonce, length=len(cipher_text)))
+    return plain_text.decode("utf-8")
+
+
+def _clear_twitch_secret() -> None:
+    if STREAM_INTEGRATION_SECRET_FILE.exists():
+        STREAM_INTEGRATION_SECRET_FILE.unlink()
 
 
 def _normalize_reaction_preferences(raw: object) -> StreamReactionPreferences:
@@ -152,9 +235,13 @@ def _normalize_settings(raw: object) -> StreamSettings:
         "twitch_channel_name": str(
             raw.get("twitch_channel_name", defaults["twitch_channel_name"])
         ).strip(),
-        "twitch_webhook_secret": str(
-            raw.get("twitch_webhook_secret", defaults["twitch_webhook_secret"])
-        ).strip(),
+        "twitch_webhook_secret": "",
+        "has_twitch_webhook_secret": bool(
+            raw.get(
+                "has_twitch_webhook_secret",
+                STREAM_INTEGRATION_SECRET_FILE.exists(),
+            )
+        ),
         "youtube_live_chat_id": str(
             raw.get("youtube_live_chat_id", defaults["youtube_live_chat_id"])
         ).strip(),
@@ -236,8 +323,15 @@ def _read_state() -> StreamIntegrationState:
 
 def _write_state(state: StreamIntegrationState) -> None:
     STREAM_INTEGRATION_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    state_to_write = {
+        **state,
+        "settings": {
+            **state["settings"],
+            "twitch_webhook_secret": "",
+        },
+    }
     STREAM_INTEGRATION_STATE_FILE.write_text(
-        json.dumps(state, indent=2),
+        json.dumps(state_to_write, indent=2),
         encoding="utf-8",
     )
 
@@ -363,7 +457,14 @@ def update_stream_settings(
         if twitch_channel_name is not None:
             settings["twitch_channel_name"] = twitch_channel_name.strip()
         if twitch_webhook_secret is not None:
-            settings["twitch_webhook_secret"] = twitch_webhook_secret.strip()
+            normalized_secret = twitch_webhook_secret.strip()
+            if normalized_secret:
+                _store_twitch_secret(normalized_secret)
+                settings["has_twitch_webhook_secret"] = True
+            else:
+                _clear_twitch_secret()
+                settings["has_twitch_webhook_secret"] = False
+            settings["twitch_webhook_secret"] = ""
         if youtube_live_chat_id is not None:
             settings["youtube_live_chat_id"] = youtube_live_chat_id.strip()
         if reaction_preferences is not None:
@@ -473,6 +574,8 @@ def process_twitch_webhook(
         settings = state["settings"]
 
         secret = settings["twitch_webhook_secret"].strip()
+        if not secret:
+            secret = _load_twitch_secret()
         if secret:
             message_id = headers.get("twitch-eventsub-message-id", "").strip()
             timestamp = headers.get("twitch-eventsub-message-timestamp", "").strip()
