@@ -6,9 +6,11 @@ import type {
   PackModelConfig,
   PackVoiceConfig,
 } from "../packApi";
+import { getRendererRuntimeSupport } from "../rendererRuntime";
 import type { SpeechInputSessionStatus } from "../speechInput";
 import type { SpeechOutputStatus } from "../speechOutput";
 import { CompanionAvatar } from "./CompanionAvatar";
+import { Live2DPixiPreview } from "./Live2DPixiPreview";
 
 type CompanionStageProps = {
   state: CompanionState;
@@ -142,8 +144,24 @@ function getIdleEyeHook(
     : modelConfig?.idle_eye_hook ?? "steady-gaze";
 }
 
-function getStageBadge(modelConfig?: PackModelConfig): string {
-  return modelConfig?.asset_path ? "Live2D loaded" : "Live2D-ready";
+function getLive2DStageBadge(
+  modelConfig: PackModelConfig | undefined,
+  runtimeAvailable: boolean,
+): string {
+  if (!runtimeAvailable) {
+    return "Pixi fallback";
+  }
+  return modelConfig?.asset_path ? "Pixi Live2D ready" : "Pixi runtime ready";
+}
+
+function getVRMStageBadge(
+  modelConfig: PackModelConfig | undefined,
+  runtimeAvailable: boolean,
+): string {
+  if (!runtimeAvailable) {
+    return "VRM staged";
+  }
+  return modelConfig?.asset_path ? "three-vrm ready" : "VRM runtime ready";
 }
 
 function getListeningIntensity(
@@ -205,6 +223,7 @@ function renderLive2DStage({
   speechPlaybackProgress = 0,
   speechPlaybackTextLength = 0,
 }: CompanionStageProps) {
+  const runtimeSupport = getRendererRuntimeSupport();
   const attachmentMode = getAttachmentMode(presencePinned, presenceAnchor);
   const attachmentLabel = getAttachmentLabel(
     attachmentMode,
@@ -217,7 +236,10 @@ function renderLive2DStage({
   const lookAtHook = getLookAtHook(state, attachmentMode, modelConfig);
   const idleEyeHook = getIdleEyeHook(state, modelConfig);
   const stageLabel = avatarConfig?.stage_label ?? "Live2D stage";
-  const badgeLabel = getStageBadge(modelConfig);
+  const badgeLabel = getLive2DStageBadge(
+    modelConfig,
+    runtimeSupport.live2d.available,
+  );
   const listeningIntensity = getListeningIntensity(
     state,
     speechInputStatus,
@@ -246,6 +268,7 @@ function renderLive2DStage({
       aria-live="polite"
       aria-label={`${displayName} avatar is ${state}`}
       data-stage-renderer="live2d"
+      data-stage-runtime={runtimeSupport.live2d.available ? "pixi" : "fallback"}
       data-pack-id={packId ?? "none"}
       data-live2d-hook={live2dHook}
       data-model-asset={modelConfig?.asset_path ?? "missing"}
@@ -281,17 +304,14 @@ function renderLive2DStage({
         <div className="live2d-stage__spotlight" />
         <div className={`live2d-stage__focus live2d-stage__focus--${state}`} />
         <div className="live2d-stage__portrait">
-          {previewImageUrl || iconDataUrl ? (
-            <img
-              alt=""
-              className="live2d-stage__image"
-              src={previewImageUrl ?? iconDataUrl ?? undefined}
-            />
-          ) : (
-            <span className="live2d-stage__fallback">
-              {displayName.charAt(0).toUpperCase()}
-            </span>
-          )}
+          <Live2DPixiPreview
+            imageUrl={previewImageUrl ?? iconDataUrl}
+            accentColor={avatarConfig?.accent_color}
+            auraColor={avatarConfig?.aura_color}
+            listeningIntensity={listeningIntensity}
+            speechIntensity={speechPlaybackIntensity}
+            displayName={displayName}
+          />
           <div className="live2d-stage__face-overlay">
             <span className={`live2d-stage__eye live2d-stage__eye--left live2d-stage__eye--${state}`} />
             <span className={`live2d-stage__eye live2d-stage__eye--right live2d-stage__eye--${state}`} />
@@ -328,6 +348,94 @@ function renderLive2DStage({
   );
 }
 
+function renderVRMStage({
+  state,
+  displayName = "Aster",
+  packId,
+  avatarConfig,
+  modelConfig,
+  iconDataUrl,
+  previewImageUrl,
+  presenceAnchor = "workspace",
+  presencePinned = false,
+  presenceTargetTitle,
+}: CompanionStageProps) {
+  const runtimeSupport = getRendererRuntimeSupport();
+  const attachmentMode = getAttachmentMode(presencePinned, presenceAnchor);
+  const attachmentLabel = getAttachmentLabel(
+    attachmentMode,
+    presenceAnchor,
+    presenceTargetTitle,
+  );
+  const presenceCue = getPresenceCue(state);
+  const stageLabel = avatarConfig?.stage_label ?? "VRM stage";
+  const badgeLabel = getVRMStageBadge(modelConfig, runtimeSupport.vrm.available);
+  const expressionHook =
+    state === "talking"
+      ? modelConfig?.speaking_hook ?? "speak-soft"
+      : state === "listening"
+        ? modelConfig?.look_at_hook ?? "attend"
+        : state === "reaction"
+          ? modelConfig?.perched_hook ?? "perk-up"
+          : modelConfig?.idle_hook ?? "idle";
+
+  return (
+    <div
+      className={`live2d-stage live2d-stage--${state} live2d-stage--${attachmentMode} live2d-stage--vrm`}
+      aria-live="polite"
+      aria-label={`${displayName} avatar is ${state}`}
+      data-stage-renderer="vrm"
+      data-stage-runtime={runtimeSupport.vrm.available ? "three-vrm" : "fallback"}
+      data-pack-id={packId ?? "none"}
+      data-model-asset={modelConfig?.asset_path ?? "missing"}
+      data-attachment-mode={attachmentMode}
+      data-attachment-label={attachmentLabel}
+      data-vrm-expression={expressionHook}
+    >
+      <div className="avatar-plaque" aria-hidden="true">
+        <span className="avatar-plaque__label">{stageLabel}</span>
+        <span className="avatar-plaque__badge avatar-plaque__badge--model">
+          {badgeLabel}
+        </span>
+      </div>
+      <div className="avatar-dock" aria-hidden="true">
+        <span className={`avatar-dock__chip avatar-dock__chip--${attachmentMode}`}>
+          {attachmentLabel}
+        </span>
+        <span className={`avatar-dock__rail avatar-dock__rail--${attachmentMode}`} />
+      </div>
+      <div className="live2d-stage__frame" aria-hidden="true">
+        <div className="live2d-stage__sheet" />
+        <div className="live2d-stage__spotlight" />
+        <div className="live2d-stage__portrait live2d-stage__portrait--vrm">
+          {previewImageUrl || iconDataUrl ? (
+            <img
+              alt=""
+              className="live2d-stage__image"
+              src={previewImageUrl ?? iconDataUrl ?? undefined}
+            />
+          ) : (
+            <span className="live2d-stage__fallback">
+              {displayName.charAt(0).toUpperCase()}
+            </span>
+          )}
+          <span className="live2d-stage__vrm-ring" />
+        </div>
+      </div>
+      <div className={`live2d-stage__status live2d-stage__status--${state}`}>
+        <span className="live2d-stage__status-label">VRM path</span>
+        <strong>{expressionHook}</strong>
+        <span>{runtimeSupport.vrm.available ? "three-vrm runtime" : "runtime fallback"}</span>
+        <span>{presenceCue}</span>
+      </div>
+      <span className="avatar-screen-reader">
+        {displayName} is on the VRM stage with the {expressionHook} expression hook active.
+        {` ${attachmentLabel}. ${presenceCue}.`}
+      </span>
+    </div>
+  );
+}
+
 export function CompanionStage(props: CompanionStageProps) {
   if (
     props.modelConfig?.renderer === "live2d" &&
@@ -335,6 +443,14 @@ export function CompanionStage(props: CompanionStageProps) {
     props.modelConfig.asset_path.trim().length > 0
   ) {
     return renderLive2DStage(props);
+  }
+
+  if (
+    props.modelConfig?.renderer === "vrm" &&
+    typeof props.modelConfig.asset_path === "string" &&
+    props.modelConfig.asset_path.trim().length > 0
+  ) {
+    return renderVRMStage(props);
   }
 
   return (

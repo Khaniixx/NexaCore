@@ -6,6 +6,7 @@ const mockGetSpeechInputSupport = vi.fn(() => ({
   microphone: true,
   transcription: true,
   vad: true,
+  vad_engine: "silero-vad",
 }));
 const mockGetSpeechOutputSupport = vi.fn(() => ({
   synthesis: true,
@@ -1172,6 +1173,7 @@ afterEach(() => {
     microphone: true,
     transcription: true,
     vad: true,
+    vad_engine: "silero-vad",
   });
   mockGetSpeechOutputSupport.mockReset();
   mockGetSpeechOutputSupport.mockReturnValue({
@@ -1440,7 +1442,7 @@ afterEach(() => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Renderer: live2d / hooks: idle-loop, dock-right, perch-top, speak-soft",
+        "Renderer: live2d / runtime: pixi / hooks: idle-loop, dock-right, perch-top, speak-soft",
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("Speech input")).toBeInTheDocument();
@@ -1613,6 +1615,37 @@ afterEach(() => {
     );
     expect(
       screen.getByText("Reading the latest reply in Sunrise's voice."),
+    ).toBeInTheDocument();
+  });
+
+  it("interrupts voice playback when a mic check starts listening", async () => {
+    createFetchMock({
+      speechInputStatus: {
+        enabled: true,
+        transcription_enabled: true,
+        available: true,
+        state: "ready",
+        provider: "browser",
+        locale: "en-US",
+        display_name: "Sunrise",
+        message: "Sunrise is ready to listen through the browser mic when you start it.",
+      },
+    });
+    const user = userEvent.setup();
+
+    render(<CompanionWorkspace />);
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    await user.click(screen.getByRole("button", { name: "Read latest reply" }));
+    await waitFor(() => {
+      expect(mockStartSpeechOutput).toHaveBeenCalled();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Start mic check" }));
+
+    expect(mockSpeechOutputStop).toHaveBeenCalled();
+    expect(
+      screen.getByText("Aster stopped speaking so the desk could listen."),
     ).toBeInTheDocument();
   });
 
