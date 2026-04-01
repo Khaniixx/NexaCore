@@ -9,7 +9,10 @@ describe("CompanionStage", () => {
       <CompanionStage
         state="idle"
         displayName="Sunrise"
+        packId="sunrise-companion"
         iconDataUrl="data:image/png;base64,AAAA"
+        previewImageUrl="http://127.0.0.1:8000/api/packs/sunrise-companion/assets/assets/icon.png"
+        modelAssetUrl="http://127.0.0.1:8000/api/packs/sunrise-companion/assets/models/sunrise.model3.json"
         avatarConfig={{
           presentation_mode: "portrait",
           stage_label: "Pack portrait",
@@ -33,7 +36,12 @@ describe("CompanionStage", () => {
 
     const stage = screen.getByLabelText("Sunrise avatar is idle");
     expect(stage).toHaveAttribute("data-stage-renderer", "live2d");
+    expect(stage).toHaveAttribute("data-pack-id", "sunrise-companion");
     expect(stage).toHaveAttribute("data-model-asset", "models/sunrise.model3.json");
+    expect(stage).toHaveAttribute(
+      "data-model-asset-url",
+      "http://127.0.0.1:8000/api/packs/sunrise-companion/assets/models/sunrise.model3.json",
+    );
     expect(stage).toHaveAttribute("data-live2d-hook", "idle-loop");
     expect(stage).toHaveAttribute("data-blink-hook", "blink-soft");
     expect(stage).toHaveAttribute("data-look-at-hook", "look-at-cursor");
@@ -43,6 +51,12 @@ describe("CompanionStage", () => {
     expect(screen.getByText("blink-soft")).toBeInTheDocument();
     expect(screen.getByText("look-at-cursor")).toBeInTheDocument();
     expect(screen.getByText("idle-glance")).toBeInTheDocument();
+    const previewImage = document.querySelector<HTMLImageElement>(".live2d-stage__image");
+    expect(previewImage).not.toBeNull();
+    expect(previewImage).toHaveAttribute(
+      "src",
+      "http://127.0.0.1:8000/api/packs/sunrise-companion/assets/assets/icon.png",
+    );
   });
 
   it("falls back to the shell avatar when the Live2D asset is missing", () => {

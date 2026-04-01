@@ -661,6 +661,13 @@ def _asset_path_for_pack_dir(pack_dir: Path, asset_path: str) -> Path:
         raise ValueError("Referenced asset was not found in the pack.") from error
 
 
+def get_pack_asset_path(pack_id: str, asset_path: str) -> Path:
+    """Resolve one installed pack asset after pack-id and path validation."""
+
+    pack_dir = _pack_dir_for_id(pack_id)
+    return _asset_path_for_pack_dir(pack_dir, asset_path)
+
+
 def _write_install_metadata(pack_dir: Path, *, source: str, archive_name: str) -> None:
     metadata = PackInstallMetadata(
         installed_at=datetime.now(UTC).isoformat(),

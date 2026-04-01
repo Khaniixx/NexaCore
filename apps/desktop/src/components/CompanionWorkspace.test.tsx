@@ -1288,6 +1288,10 @@ afterEach(() => {
     expect(screen.getAllByText("Sunrise").length).toBeGreaterThan(0);
     expect(screen.getByText("Pack portrait")).toBeInTheDocument();
     expect(screen.getAllByText("Resting in workspace").length).toBeGreaterThan(0);
+    expect(screen.getByLabelText("Sunrise avatar is idle")).toHaveAttribute(
+      "data-model-asset-url",
+      "http://127.0.0.1:8000/api/packs/sunrise-companion/assets/models/sunrise.model3.json",
+    );
     expect(
       screen.getAllByText(
         "Sunrise stays in the main workspace until you pin desktop presence.",

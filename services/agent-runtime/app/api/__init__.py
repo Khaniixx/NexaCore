@@ -2,11 +2,12 @@
 
 import base64
 import binascii
+import mimetypes
 from typing import Any
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel, Field, StringConstraints
 
 from app.core.command_router import route_user_message
@@ -43,6 +44,7 @@ from app.marketplace import (
 from app.personality_packs import (
     PACK_ID_PATTERN,
     get_active_pack_profile,
+    get_pack_asset_path,
     get_pack_manifest_schema,
     import_tavern_card,
     install_pack_archive,
@@ -1077,6 +1079,23 @@ async def get_pack_schema() -> PackSchemaResponse:
     """Return the JSON schema for pack.json."""
 
     return PackSchemaResponse(schema=get_pack_manifest_schema())
+
+
+@router.get("/packs/{pack_id}/assets/{asset_path:path}")
+async def get_pack_asset(pack_id: str, asset_path: str) -> FileResponse:
+    """Return one installed pack asset for local renderer consumption."""
+
+    try:
+        resolved_asset_path = get_pack_asset_path(pack_id, asset_path)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    mime_type = mimetypes.guess_type(resolved_asset_path.name)[0]
+    return FileResponse(
+        path=resolved_asset_path,
+        media_type=mime_type or "application/octet-stream",
+        filename=resolved_asset_path.name,
+    )
 
 
 @router.post("/packs/install", response_model=PackInstallResponse)
