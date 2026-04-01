@@ -1187,7 +1187,11 @@ function createFetchMock(
           );
         }
 
-        if (body.message === "Help me start today with Sunrise. Give me a calm check-in, point me at one useful next step, and keep the desk steady.") {
+        if (
+          body.message.startsWith(
+            "Help me start today with Sunrise. Give me a calm check-in, point me at one useful next step, and keep the desk steady.",
+          )
+        ) {
           return Promise.resolve(
             new Response(
               JSON.stringify({
@@ -1208,7 +1212,11 @@ function createFetchMock(
           );
         }
 
-        if (body.message === "Help me wrap up today with Sunrise. Summarize what matters, what should carry forward, and the next thread to pick up tomorrow.") {
+        if (
+          body.message.startsWith(
+            "Help me wrap up today with Sunrise. Summarize what matters, what should carry forward, and the next thread to pick up tomorrow.",
+          )
+        ) {
           return Promise.resolve(
             new Response(
               JSON.stringify({
@@ -1430,11 +1438,11 @@ afterEach(() => {
       await screen.findByRole("button", { name: "Pick up where we left off" }),
     );
 
-    expect(
-      await screen.findByDisplayValue(
-        'Pick up where we left off from "Recent: local setup". Keep this in mind: The user focused on local setup. The companion responded with a calm local reply.',
-      ),
-    ).toBeInTheDocument();
+      expect(
+        await screen.findByDisplayValue(
+          'Pick up where we left off from "Recent: local setup". Keep this in mind: The user focused on local setup. The companion responded with a calm local reply. Keep the reply aligned with Sunrise\'s character. Character read: A bright early-day companion who keeps the desk calm and the next step practical. Opening tone: Morning. I kept the thread warm for you.',
+        ),
+      ).toBeInTheDocument();
   });
 
   it("can ask for the next step directly from the continuity desk", async () => {
@@ -1466,11 +1474,11 @@ afterEach(() => {
       await screen.findByRole("button", { name: "Turn this into a check-in" }),
     );
 
-    expect(
-      await screen.findByDisplayValue(
-        'Based on "Recent: local setup", give me a calm check-in and help me resume from this thread: The user focused on local setup. The companion responded with a calm local reply.',
-      ),
-    ).toBeInTheDocument();
+      expect(
+        await screen.findByDisplayValue(
+          'Based on "Recent: local setup", give me a calm check-in and help me resume from this thread: The user focused on local setup. The companion responded with a calm local reply. Keep the reply aligned with Sunrise\'s character. Character read: A bright early-day companion who keeps the desk calm and the next step practical. Opening tone: Morning. I kept the thread warm for you.',
+        ),
+      ).toBeInTheDocument();
   });
 
   it("can run the start-of-day routine from the main desk", async () => {
