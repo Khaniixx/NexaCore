@@ -1616,6 +1616,7 @@ textarea {
   width: 30px;
   height: 10px;
   border-radius: 999px;
+  transition: transform 180ms ease;
 }
 
 .live2d-stage__eye--left {
@@ -1629,10 +1630,11 @@ textarea {
 .live2d-stage__mouth {
   bottom: 26%;
   left: 50%;
-  width: 44px;
-  height: 14px;
+  width: var(--live2d-mouth-width, 44px);
+  height: var(--live2d-mouth-open, 14px);
   transform: translateX(-50%);
   border-radius: 40% 40% 65% 65%;
+  transition: width 160ms ease, height 160ms ease, transform 160ms ease;
 }
 
 .live2d-stage__scanline--top,
@@ -1711,16 +1713,16 @@ textarea {
 
 .live2d-stage--listening .live2d-stage__eye,
 .live2d-stage--talking .live2d-stage__eye {
-  transform: translateX(4px);
+  transform: translateX(var(--live2d-eye-shift, 4px));
 }
 
 .live2d-stage--thinking .live2d-stage__eye {
-  transform: translateX(-3px);
+  transform: translateX(calc(var(--live2d-eye-shift, 3px) * -0.75));
 }
 
 .live2d-stage--talking .live2d-stage__mouth {
-  height: 22px;
-  width: 52px;
+  height: var(--live2d-mouth-open, 22px);
+  width: var(--live2d-mouth-width, 52px);
   animation: live2dMouth 900ms ease-in-out infinite;
 }
 
@@ -1745,6 +1747,11 @@ textarea {
 .live2d-stage--docked .live2d-stage__focus {
   background:
     radial-gradient(circle, rgba(145, 178, 255, 0.14), transparent 62%);
+}
+
+.live2d-stage--speech-active .live2d-stage__focus {
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.12), transparent 64%);
 }
 
 .live2d-stage--attached .live2d-stage__frame {

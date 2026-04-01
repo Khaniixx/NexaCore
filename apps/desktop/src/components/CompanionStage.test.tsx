@@ -93,6 +93,9 @@ describe("CompanionStage", () => {
           look_at_hook: "look-at-cursor",
           idle_eye_hook: "idle-glance",
         }}
+        speechPlaybackStatus="speaking"
+        speechPlaybackProgress={0.42}
+        speechPlaybackTextLength={96}
         presenceAnchor="active-window-right"
         presencePinned
         presenceTargetTitle="Visual Studio Code"
@@ -103,7 +106,11 @@ describe("CompanionStage", () => {
     expect(stage).toHaveAttribute("data-stage-renderer", "live2d");
     expect(stage).toHaveAttribute("data-live2d-hook", "speak-soft");
     expect(stage).toHaveAttribute("data-look-at-hook", "look-at-cursor");
+    expect(stage).toHaveAttribute("data-speech-playback-status", "speaking");
+    expect(stage).toHaveAttribute("data-speech-playback-progress", "0.42");
+    expect(stage).toHaveAttribute("data-speech-intensity", "0.92");
     expect(screen.getByText("Following Visual Studio Code")).toBeInTheDocument();
     expect(screen.getByText("speak-soft")).toBeInTheDocument();
+    expect(screen.getByText("speech-follow 0.92")).toBeInTheDocument();
   });
 });

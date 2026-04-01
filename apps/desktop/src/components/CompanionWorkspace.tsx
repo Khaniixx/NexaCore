@@ -37,6 +37,7 @@ import {
 import {
   getSpeechOutputSupport,
   startSpeechOutput,
+  type SpeechOutputProgress,
   type SpeechOutputSession,
   type SpeechOutputStatus,
   type SpeechOutputSupport,
@@ -421,6 +422,12 @@ export function CompanionWorkspace() {
   const [isSavingVoice, setIsSavingVoice] = useState(false);
   const [speechOutputStatus, setSpeechOutputStatus] =
     useState<SpeechOutputStatus>("idle");
+  const [speechOutputProgress, setSpeechOutputProgress] =
+    useState<SpeechOutputProgress>({
+      charIndex: 0,
+      progress: 0,
+      textLength: 0,
+    });
   const [speechInputStatus, setSpeechInputStatus] =
     useState<SpeechInputStatus | null>(null);
   const [speechInputBrowserState, setSpeechInputBrowserState] =
@@ -1311,6 +1318,11 @@ export function CompanionWorkspace() {
     speechOutputSessionRef.current?.stop();
     speechOutputSessionRef.current = null;
     setSpeechOutputStatus("idle");
+    setSpeechOutputProgress({
+      charIndex: 0,
+      progress: 0,
+      textLength: 0,
+    });
   }
 
   async function handleToggleVoiceAutoplay(enabled: boolean): Promise<void> {
@@ -1352,6 +1364,11 @@ export function CompanionWorkspace() {
     }
 
     stopSpeechOutputPlayback();
+    setSpeechOutputProgress({
+      charIndex: 0,
+      progress: 0,
+      textLength: text.length,
+    });
 
     try {
       speechOutputSessionRef.current = startSpeechOutput({
@@ -1362,7 +1379,15 @@ export function CompanionWorkspace() {
           setSpeechOutputStatus(status);
           if (status === "idle" || status === "unsupported" || status === "error") {
             speechOutputSessionRef.current = null;
+            setSpeechOutputProgress({
+              charIndex: 0,
+              progress: 0,
+              textLength: 0,
+            });
           }
+        },
+        onProgress: (progress) => {
+          setSpeechOutputProgress(progress);
         },
         onError: (message) => {
           setSettingsNotice(message);
@@ -1371,6 +1396,11 @@ export function CompanionWorkspace() {
       return true;
     } catch (error) {
       setSpeechOutputStatus("error");
+      setSpeechOutputProgress({
+        charIndex: 0,
+        progress: 0,
+        textLength: 0,
+      });
       setSettingsNotice(
         error instanceof Error
           ? error.message
@@ -2069,6 +2099,9 @@ export function CompanionWorkspace() {
           presencePinned={desktopPresencePinned}
           presenceTargetTitle={presenceTarget?.title}
           voiceConfig={activePack?.voice}
+          speechPlaybackStatus={speechOutputStatus}
+          speechPlaybackProgress={speechOutputProgress.progress}
+          speechPlaybackTextLength={speechOutputProgress.textLength}
         />
       </section>
 
