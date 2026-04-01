@@ -163,6 +163,26 @@ function getActiveCharacterOpening(activePack: InstalledPack | null): string | n
   return activePack?.character_profile?.opening_message ?? null;
 }
 
+function buildCharacterContinuityGuidance(
+  activePack: InstalledPack | null,
+  companionTitle: string,
+): string {
+  const summary = getActiveCharacterSummary(activePack);
+  const opening = getActiveCharacterOpening(activePack);
+  if (!summary && !opening) {
+    return `Keep the reply grounded in ${companionTitle}'s steady local companion tone.`;
+  }
+
+  const guidanceParts = [`Keep the reply aligned with ${companionTitle}'s character.`];
+  if (summary) {
+    guidanceParts.push(`Character read: ${summary}`);
+  }
+  if (opening) {
+    guidanceParts.push(`Opening tone: ${opening}`);
+  }
+  return guidanceParts.join(" ");
+}
+
 function getPackAssetUrl(
   activePack: InstalledPack | null,
   assetType: "preview-image" | "model-asset",
@@ -193,24 +213,42 @@ function getAmbientDeskCue(state: CompanionState, companionTitle: string): strin
   return `${companionTitle} needs a breath while the local thread settles.`;
 }
 
-function buildContinuityPrompt(summary: MemorySummary): string {
-  return `Pick up where we left off from "${summary.title}". Keep this in mind: ${summary.summary}`;
+function buildContinuityPrompt(
+  summary: MemorySummary,
+  activePack: InstalledPack | null,
+  companionTitle: string,
+): string {
+  return `Pick up where we left off from "${summary.title}". Keep this in mind: ${summary.summary} ${buildCharacterContinuityGuidance(activePack, companionTitle)}`;
 }
 
-function buildContinuityCheckInPrompt(summary: MemorySummary): string {
-  return `Based on "${summary.title}", give me a calm check-in and help me resume from this thread: ${summary.summary}`;
+function buildContinuityCheckInPrompt(
+  summary: MemorySummary,
+  activePack: InstalledPack | null,
+  companionTitle: string,
+): string {
+  return `Based on "${summary.title}", give me a calm check-in and help me resume from this thread: ${summary.summary} ${buildCharacterContinuityGuidance(activePack, companionTitle)}`;
 }
 
-function buildContinuityNextStepPrompt(summary: MemorySummary): string {
-  return `Based on "${summary.title}", what are the next one or two useful steps for me right now? Keep this context in mind: ${summary.summary}`;
+function buildContinuityNextStepPrompt(
+  summary: MemorySummary,
+  activePack: InstalledPack | null,
+  companionTitle: string,
+): string {
+  return `Based on "${summary.title}", what are the next one or two useful steps for me right now? Keep this context in mind: ${summary.summary} ${buildCharacterContinuityGuidance(activePack, companionTitle)}`;
 }
 
-function buildStartDayPrompt(companionTitle: string): string {
-  return `Help me start today with ${companionTitle}. Give me a calm check-in, point me at one useful next step, and keep the desk steady.`;
+function buildStartDayPrompt(
+  companionTitle: string,
+  activePack: InstalledPack | null,
+): string {
+  return `Help me start today with ${companionTitle}. Give me a calm check-in, point me at one useful next step, and keep the desk steady. ${buildCharacterContinuityGuidance(activePack, companionTitle)}`;
 }
 
-function buildWrapUpPrompt(companionTitle: string): string {
-  return `Help me wrap up today with ${companionTitle}. Summarize what matters, what should carry forward, and the next thread to pick up tomorrow.`;
+function buildWrapUpPrompt(
+  companionTitle: string,
+  activePack: InstalledPack | null,
+): string {
+  return `Help me wrap up today with ${companionTitle}. Summarize what matters, what should carry forward, and the next thread to pick up tomorrow. ${buildCharacterContinuityGuidance(activePack, companionTitle)}`;
 }
 
 function getContinuityFreshnessLabel(summary: MemorySummary | null): string | null {
@@ -2732,7 +2770,13 @@ export function CompanionWorkspace() {
                     if (latestMemorySummary === null) {
                       return;
                     }
-                    handleDraftChange(buildContinuityPrompt(latestMemorySummary));
+                      handleDraftChange(
+                        buildContinuityPrompt(
+                          latestMemorySummary,
+                          activePack,
+                          companionTitle,
+                        ),
+                      );
                   }}
                 >
                   Pick up where we left off
@@ -2745,7 +2789,13 @@ export function CompanionWorkspace() {
                     if (latestMemorySummary === null) {
                       return;
                     }
-                    void submitMessage(buildContinuityNextStepPrompt(latestMemorySummary));
+                      void submitMessage(
+                        buildContinuityNextStepPrompt(
+                          latestMemorySummary,
+                          activePack,
+                          companionTitle,
+                        ),
+                      );
                   }}
                 >
                   What should we do next?
@@ -2758,7 +2808,13 @@ export function CompanionWorkspace() {
                     if (latestMemorySummary === null) {
                       return;
                     }
-                    handleDraftChange(buildContinuityCheckInPrompt(latestMemorySummary));
+                      handleDraftChange(
+                        buildContinuityCheckInPrompt(
+                          latestMemorySummary,
+                          activePack,
+                          companionTitle,
+                        ),
+                      );
                   }}
                 >
                   Turn this into a check-in
@@ -2798,7 +2854,7 @@ export function CompanionWorkspace() {
                 disabled={isSending}
                 type="button"
                 onClick={() => {
-                  void submitMessage(buildStartDayPrompt(companionTitle));
+                  void submitMessage(buildStartDayPrompt(companionTitle, activePack));
                 }}
               >
                 Start the day
@@ -2809,7 +2865,13 @@ export function CompanionWorkspace() {
                 type="button"
                 onClick={() => {
                   if (latestMemorySummary) {
-                    void submitMessage(buildContinuityNextStepPrompt(latestMemorySummary));
+                      void submitMessage(
+                        buildContinuityNextStepPrompt(
+                          latestMemorySummary,
+                          activePack,
+                          companionTitle,
+                        ),
+                      );
                     return;
                   }
                   void submitMessage("How should we move forward from here?");
@@ -2832,7 +2894,7 @@ export function CompanionWorkspace() {
                 disabled={isSending}
                 type="button"
                 onClick={() => {
-                  void submitMessage(buildWrapUpPrompt(companionTitle));
+                  void submitMessage(buildWrapUpPrompt(companionTitle, activePack));
                 }}
               >
                 Wrap up today
