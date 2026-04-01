@@ -89,6 +89,18 @@ def _normalized_relative_path(value: str) -> str:
     return path.as_posix()
 
 
+def _sanitize_uploaded_filename(filename: str, *, required_suffix: str | None = None) -> str:
+    normalized = filename.strip().replace("\\", "/")
+    basename = normalized.rsplit("/", maxsplit=1)[-1].strip()
+    if not basename:
+        raise ValueError("Uploaded filename is required.")
+    if basename in {".", ".."}:
+        raise ValueError("Uploaded filename is invalid.")
+    if required_suffix is not None and Path(basename).suffix.lower() != required_suffix.lower():
+        raise ValueError(f"Uploaded file must use the {required_suffix} extension.")
+    return basename
+
+
 def _sha256_hex(payload: bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
 
@@ -1619,11 +1631,10 @@ def import_tavern_card(*, filename: str, image_bytes: bytes) -> dict[str, object
 def import_vrm_model(*, filename: str, vrm_bytes: bytes) -> dict[str, object]:
     """Convert one VRM file into an installed local personality pack."""
 
-    normalized_filename = filename.strip()
-    if not normalized_filename:
-        raise ValueError("VRM filename is required.")
-    if Path(normalized_filename).suffix.lower() != ".vrm":
-        raise ValueError("VRM import expects a .vrm file.")
+    normalized_filename = _sanitize_uploaded_filename(
+        filename,
+        required_suffix=".vrm",
+    )
     if not vrm_bytes:
         raise ValueError("VRM import requires file data.")
 
