@@ -11,6 +11,14 @@ export type CompanionWindowPresence = {
     | "workspace";
 };
 
+export type CompanionPresenceTargetDetail = {
+  anchor: CompanionWindowPresence["anchor"];
+  title: string | null;
+  mode: "workspace" | "docked" | "attached" | "perched";
+};
+
+export const COMPANION_PRESENCE_TARGET_EVENT = "companion-presence-target";
+
 const DEFAULT_WORKSPACE_WIDTH = 1240;
 const DEFAULT_WORKSPACE_HEIGHT = 820;
 const PINNED_WIDTH = 440;
@@ -71,6 +79,40 @@ function clearActiveWindowTracking(): void {
   }
 }
 
+function getPresenceTargetMode(
+  settings: CompanionWindowPresence,
+): CompanionPresenceTargetDetail["mode"] {
+  if (!settings.enabled || settings.anchor === undefined || settings.anchor === "workspace") {
+    return "workspace";
+  }
+  if (
+    settings.anchor === "active-window-top-left" ||
+    settings.anchor === "active-window-top-right"
+  ) {
+    return "perched";
+  }
+  if (
+    settings.anchor === "active-window-left" ||
+    settings.anchor === "active-window-right"
+  ) {
+    return "attached";
+  }
+  return "docked";
+}
+
+function publishPresenceTarget(detail: CompanionPresenceTargetDetail): void {
+  if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") {
+    return;
+  }
+
+  window.dispatchEvent(
+    new CustomEvent<CompanionPresenceTargetDetail>(
+      COMPANION_PRESENCE_TARGET_EVENT,
+      { detail },
+    ),
+  );
+}
+
 async function applyAffinityPlacement(
   settings: CompanionWindowPresence,
 ): Promise<void> {
@@ -111,6 +153,14 @@ async function applyAffinityPlacement(
   const activeWindowBounds = isActiveWindowAnchor(settings.anchor)
     ? await loadActiveWindowBounds()
     : null;
+  publishPresenceTarget({
+    anchor: settings.anchor,
+    mode: getPresenceTargetMode(settings),
+    title:
+      activeWindowBounds?.title?.trim().length
+        ? activeWindowBounds.title.trim()
+        : null,
+  });
   const resolvedAnchor =
     settings.anchor === "active-window-left"
       ? "desktop-left"
@@ -189,6 +239,11 @@ export async function applyOverlayWindowState(
     if (shouldApplyAffinity) {
       await applyAffinityPlacement(settings);
     } else if (affinityWasApplied) {
+      publishPresenceTarget({
+        anchor: settings.anchor,
+        mode: "workspace",
+        title: null,
+      });
       clearActiveWindowTracking();
       await currentWindow.setResizable(true);
       if (savedWorkspacePlacement !== null) {
@@ -221,6 +276,11 @@ export async function applyOverlayWindowState(
     if (shouldApplyAffinity) {
       startActiveWindowTracking(settings);
     } else {
+      publishPresenceTarget({
+        anchor: settings.anchor,
+        mode: "workspace",
+        title: null,
+      });
       clearActiveWindowTracking();
     }
   } catch {

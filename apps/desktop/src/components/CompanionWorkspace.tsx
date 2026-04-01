@@ -13,7 +13,11 @@ import {
 } from "../companionStateMachine";
 import { companionEventBus } from "../eventBus";
 import { installerApi } from "../installerApi";
-import { applyOverlayWindowState } from "../overlayController";
+import {
+  applyOverlayWindowState,
+  COMPANION_PRESENCE_TARGET_EVENT,
+  type CompanionPresenceTargetDetail,
+} from "../overlayController";
 import {
   microUtilityApi,
   type MicroUtilityState,
@@ -169,21 +173,26 @@ function getAvatarReadiness(activePack: InstalledPack | null): {
 
 function getPresenceAttachmentLabel(
   presenceStatus: PresenceStatus | null,
+  presenceTargetTitle: string | null,
 ): string {
   if (!presenceStatus?.enabled || presenceStatus.state === "workspace") {
     return "Resting in workspace";
   }
   if (presenceStatus?.anchor === "active-window-top-left") {
-    return "Perched on active app";
+    return presenceTargetTitle ? `Perched on ${presenceTargetTitle}` : "Perched on active app";
   }
   if (presenceStatus?.anchor === "active-window-top-right") {
-    return "Perched on active app";
+    return presenceTargetTitle ? `Perched on ${presenceTargetTitle}` : "Perched on active app";
   }
   if (presenceStatus?.anchor === "active-window-left") {
-    return "Attached left of active app";
+    return presenceTargetTitle
+      ? `Following ${presenceTargetTitle}`
+      : "Attached left of active app";
   }
   if (presenceStatus?.anchor === "active-window-right") {
-    return "Attached right of active app";
+    return presenceTargetTitle
+      ? `Following ${presenceTargetTitle}`
+      : "Attached right of active app";
   }
   if (presenceStatus?.anchor === "desktop-left") {
     return "Docked to desktop left";
@@ -197,21 +206,30 @@ function getPresenceAttachmentLabel(
 function getPresenceAttachmentDetail(
   presenceStatus: PresenceStatus | null,
   companionTitle: string,
+  presenceTargetTitle: string | null,
 ): string {
   if (!presenceStatus?.enabled || presenceStatus.state === "workspace") {
     return `${companionTitle} stays in the main workspace until you pin desktop presence.`;
   }
   if (presenceStatus?.anchor === "active-window-top-left") {
-    return `${companionTitle} perches on the top-left edge of the active app and follows it as focus shifts.`;
+    return presenceTargetTitle
+      ? `${companionTitle} perches on ${presenceTargetTitle} and follows it as focus shifts.`
+      : `${companionTitle} perches on the top-left edge of the active app and follows it as focus shifts.`;
   }
   if (presenceStatus?.anchor === "active-window-top-right") {
-    return `${companionTitle} perches on the top-right edge of the active app and follows it as focus shifts.`;
+    return presenceTargetTitle
+      ? `${companionTitle} perches on ${presenceTargetTitle} and follows it as focus shifts.`
+      : `${companionTitle} perches on the top-right edge of the active app and follows it as focus shifts.`;
   }
   if (presenceStatus?.anchor === "active-window-left") {
-    return `${companionTitle} stays tucked to the left side of the active app and follows it as focus shifts.`;
+    return presenceTargetTitle
+      ? `${companionTitle} stays tucked beside ${presenceTargetTitle} and follows it as focus shifts.`
+      : `${companionTitle} stays tucked to the left side of the active app and follows it as focus shifts.`;
   }
   if (presenceStatus?.anchor === "active-window-right") {
-    return `${companionTitle} stays tucked to the right side of the active app and follows it as focus shifts.`;
+    return presenceTargetTitle
+      ? `${companionTitle} stays tucked beside ${presenceTargetTitle} and follows it as focus shifts.`
+      : `${companionTitle} stays tucked to the right side of the active app and follows it as focus shifts.`;
   }
   if (presenceStatus?.anchor === "desktop-left") {
     return `${companionTitle} keeps a steady place on the left desktop edge while pinned.`;
@@ -257,6 +275,8 @@ export function CompanionWorkspace() {
   const [voiceStatus, setVoiceStatus] = useState<VoiceStatus | null>(null);
   const [isSavingVoice, setIsSavingVoice] = useState(false);
   const [presenceStatus, setPresenceStatus] = useState<PresenceStatus | null>(null);
+  const [presenceTarget, setPresenceTarget] =
+    useState<CompanionPresenceTargetDetail | null>(null);
   const [isSavingPresence, setIsSavingPresence] = useState(false);
   const [installerCompleted, setInstallerCompleted] = useState(false);
   const [activePack, setActivePack] = useState<InstalledPack | null>(null);
@@ -492,6 +512,25 @@ export function CompanionWorkspace() {
       anchor: presenceStatus?.enabled ? presenceStatus.anchor : undefined,
     });
   }, [clickThroughActive, overlayActive, presenceStatus?.anchor, presenceStatus?.enabled]);
+
+  useEffect(() => {
+    const handlePresenceTarget = (event: Event) => {
+      const customEvent = event as CustomEvent<CompanionPresenceTargetDetail>;
+      setPresenceTarget(customEvent.detail);
+    };
+
+    window.addEventListener(
+      COMPANION_PRESENCE_TARGET_EVENT,
+      handlePresenceTarget as EventListener,
+    );
+
+    return () => {
+      window.removeEventListener(
+        COMPANION_PRESENCE_TARGET_EVENT,
+        handlePresenceTarget as EventListener,
+      );
+    };
+  }, []);
 
   useEffect(() => {
     if (!clickThroughActive) {
@@ -1496,10 +1535,14 @@ export function CompanionWorkspace() {
               : presenceStatus?.anchor === "desktop-right"
                 ? "desktop right"
                 : "workspace";
-  const presenceAttachmentLabel = getPresenceAttachmentLabel(presenceStatus);
+  const presenceAttachmentLabel = getPresenceAttachmentLabel(
+    presenceStatus,
+    presenceTarget?.title ?? null,
+  );
   const presenceAttachmentDetail = getPresenceAttachmentDetail(
     presenceStatus,
     companionTitle,
+    presenceTarget?.title ?? null,
   );
   const companionStateSummary =
     companionState === "idle"
@@ -1606,6 +1649,7 @@ export function CompanionWorkspace() {
           iconDataUrl={activePack?.icon_data_url}
           presenceAnchor={presenceStatus?.anchor}
           presencePinned={desktopPresencePinned}
+          presenceTargetTitle={presenceTarget?.title}
           voiceConfig={activePack?.voice}
         />
       </section>

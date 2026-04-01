@@ -18,6 +18,7 @@ type CompanionAvatarProps = {
     | "active-window-top-left"
     | "workspace";
   presencePinned?: boolean;
+  presenceTargetTitle?: string | null;
 };
 
 type AvatarPresentationMode = "shell" | "portrait" | "model";
@@ -150,8 +151,15 @@ function getAttachmentMode(
 function getAttachmentLabel(
   attachmentMode: "attached" | "docked" | "workspace",
   presenceAnchor: CompanionAvatarProps["presenceAnchor"],
+  presenceTargetTitle: string | null | undefined,
 ): string {
   if (attachmentMode === "attached") {
+    if (presenceTargetTitle) {
+      return presenceAnchor === "active-window-top-left" ||
+        presenceAnchor === "active-window-top-right"
+        ? `Perched on ${presenceTargetTitle}`
+        : `Following ${presenceTargetTitle}`;
+    }
     return presenceAnchor === "active-window-left"
       ? "Attached left of active app"
       : presenceAnchor === "active-window-top-left"
@@ -170,9 +178,12 @@ function getAttachmentLabel(
 
 function getAttachmentCue(
   attachmentMode: "attached" | "docked" | "workspace",
+  presenceTargetTitle: string | null | undefined,
 ): string {
   if (attachmentMode === "attached") {
-    return "Keeping close to the active window";
+    return presenceTargetTitle
+      ? `Keeping close to ${presenceTargetTitle}`
+      : "Keeping close to the active window";
   }
   if (attachmentMode === "docked") {
     return "Holding a steady place on the desktop edge";
@@ -188,6 +199,7 @@ export function CompanionAvatar({
   iconDataUrl,
   presenceAnchor = "workspace",
   presencePinned = false,
+  presenceTargetTitle,
 }: CompanionAvatarProps) {
   const stateLabel = state.charAt(0).toUpperCase() + state.slice(1);
   const animationName = getAnimationName(state, avatarConfig);
@@ -198,8 +210,12 @@ export function CompanionAvatar({
   const stageBadge = getAvatarBadge(avatarMode);
   const readinessLabel = getAvatarReadiness(avatarMode, iconDataUrl);
   const attachmentMode = getAttachmentMode(presencePinned, presenceAnchor);
-  const attachmentLabel = getAttachmentLabel(attachmentMode, presenceAnchor);
-  const attachmentCue = getAttachmentCue(attachmentMode);
+  const attachmentLabel = getAttachmentLabel(
+    attachmentMode,
+    presenceAnchor,
+    presenceTargetTitle,
+  );
+  const attachmentCue = getAttachmentCue(attachmentMode, presenceTargetTitle);
   const avatarStyle = {
     "--avatar-accent": avatarConfig?.accent_color ?? "#9db9ff",
     "--avatar-aura": avatarConfig?.aura_color ?? "#87ead8",

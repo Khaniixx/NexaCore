@@ -134,7 +134,10 @@ describe("applyOverlayWindowState", () => {
   });
 
   it("pins beside the active window when an active-app anchor is selected", async () => {
-    const { applyOverlayWindowState } = await import("./overlayController");
+    const { applyOverlayWindowState, COMPANION_PRESENCE_TARGET_EVENT } =
+      await import("./overlayController");
+    const targetSpy = vi.fn();
+    window.addEventListener(COMPANION_PRESENCE_TARGET_EVENT, targetSpy);
     invokeMock.mockResolvedValue({
       x: 600,
       y: 120,
@@ -153,6 +156,15 @@ describe("applyOverlayWindowState", () => {
     expect(currentWindowMock.setPosition).toHaveBeenCalledWith(
       expect.objectContaining({ x: 1456, y: 150 }),
     );
+    expect(targetSpy).toHaveBeenCalledTimes(1);
+    expect(
+      (targetSpy.mock.calls[0][0] as CustomEvent).detail,
+    ).toMatchObject({
+      mode: "attached",
+      anchor: "active-window-right",
+      title: "Editor",
+    });
+    window.removeEventListener(COMPANION_PRESENCE_TARGET_EVENT, targetSpy);
   });
 
   it("perches on the top edge of the active window when a top anchor is selected", async () => {

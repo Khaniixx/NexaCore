@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { COMPANION_PRESENCE_TARGET_EVENT } from "../overlayController";
 import { CompanionWorkspace } from "./CompanionWorkspace";
 
 function createInstallerStatus(
@@ -1397,6 +1398,39 @@ describe("CompanionWorkspace", () => {
     expect(
       screen.getByLabelText("Sunrise avatar is idle"),
     ).toHaveAttribute("data-attachment-mode", "attached");
+  });
+
+  it("surfaces the active app name when presence target updates arrive", async () => {
+    createFetchMock({
+      presenceStatus: {
+        enabled: true,
+        click_through_enabled: false,
+        anchor: "active-window-right",
+        state: "pinned",
+        message: "Aster is following the active app and ready to stay nearby.",
+      },
+    });
+
+    render(<CompanionWorkspace />);
+
+    window.dispatchEvent(
+      new CustomEvent(COMPANION_PRESENCE_TARGET_EVENT, {
+        detail: {
+          anchor: "active-window-right",
+          mode: "attached",
+          title: "Visual Studio Code",
+        },
+      }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Following Visual Studio Code").length).toBeGreaterThan(0);
+    });
+    expect(
+      screen.getAllByText(
+        "Sunrise stays tucked beside Visual Studio Code and follows it as focus shifts.",
+      ).length,
+    ).toBeGreaterThan(0);
   });
 
   it("lets the user save a different local model from settings", async () => {

@@ -77,6 +77,7 @@ describe("CompanionAvatar", () => {
         state="listening"
         displayName="Bloom"
         presenceAnchor="active-window-right"
+        presenceTargetTitle="Visual Studio Code"
         presencePinned
         avatarConfig={{
           presentation_mode: "portrait",
@@ -89,11 +90,11 @@ describe("CompanionAvatar", () => {
     expect(avatar).toHaveAttribute("data-attachment-mode", "attached");
     expect(avatar).toHaveAttribute(
       "data-attachment-label",
-      "Attached right of active app",
+      "Following Visual Studio Code",
     );
-    expect(screen.getByText("Attached right of active app")).toBeInTheDocument();
+    expect(screen.getByText("Following Visual Studio Code")).toBeInTheDocument();
     expect(
-      screen.getByText(/keeping close to the active window/i),
+      screen.getByText(/keeping close to visual studio code/i),
     ).toBeInTheDocument();
   });
 });
