@@ -163,6 +163,28 @@ function getActiveCharacterOpening(activePack: InstalledPack | null): string | n
   return activePack?.character_profile?.opening_message ?? null;
 }
 
+function getActiveCharacterScenario(activePack: InstalledPack | null): string | null {
+  return activePack?.character_profile?.scenario ?? null;
+}
+
+function getActiveCharacterTags(activePack: InstalledPack | null): string[] {
+  return activePack?.character_profile?.tags ?? [];
+}
+
+function getActiveCharacterStyleNotes(activePack: InstalledPack | null): string[] {
+  return activePack?.character_profile?.style_notes ?? [];
+}
+
+function getCharacterOriginLabel(activePack: InstalledPack | null): string | null {
+  const origin = activePack?.character_profile?.origin;
+  if (origin === "tavern-card") {
+    return "Imported character";
+  }
+  if (origin === "pack") {
+    return "Pack-defined character";
+  }
+  return typeof origin === "string" && origin.trim().length > 0 ? origin : null;
+}
 function buildCharacterContinuityGuidance(
   activePack: InstalledPack | null,
   companionTitle: string,
@@ -213,42 +235,119 @@ function getAmbientDeskCue(state: CompanionState, companionTitle: string): strin
   return `${companionTitle} needs a breath while the local thread settles.`;
 }
 
-function buildContinuityPrompt(
-  summary: MemorySummary,
-  activePack: InstalledPack | null,
-  companionTitle: string,
+function getOpenDeskNoteCount(state: MicroUtilityState | null): number {
+  return state?.notes.filter((note) => !note.completed && !note.dismissed).length ?? 0;
+}
+
+function describeDeskPresence(
+  presenceStatus: PresenceStatus | null,
+  companionState: CompanionState,
 ): string {
-  return `Pick up where we left off from "${summary.title}". Keep this in mind: ${summary.summary} ${buildCharacterContinuityGuidance(activePack, companionTitle)}`;
+  const presenceLabel =
+    presenceStatus?.state === "workspace"
+      ? "resting in the workspace"
+      : presenceStatus?.state === "click-through"
+        ? `pinned with click-through near ${presenceStatus.anchor}`
+        : presenceStatus?.state === "pinned"
+          ? `pinned near ${presenceStatus.anchor}`
+          : "resting in the workspace";
+  return `${presenceLabel}; companion state ${companionState}`;
+}
+
+function buildDeskContextBundle(options: {
+  activePack: InstalledPack | null;
+  companionTitle: string;
+  companionState: CompanionState;
+  presenceStatus: PresenceStatus | null;
+  latestSharedSummary: MemorySummary | null;
+  latestPackSummary: MemorySummary | null;
+  memorySummaryState: MemorySummaryList;
+  microUtilityState: MicroUtilityState | null;
+}): string {
+  const parts: string[] = [];
+  if (options.latestPackSummary) {
+    parts.push(
+      `Active pack thread: ${options.latestPackSummary.title}. ${options.latestPackSummary.summary}`,
+    );
+  }
+  if (options.latestSharedSummary) {
+    parts.push(
+      `Shared thread: ${options.latestSharedSummary.title}. ${options.latestSharedSummary.summary}`,
+    );
+  }
+
+  const openDeskNotes = getOpenDeskNoteCount(options.microUtilityState);
+  const activeTimers = getActiveTimerCount(options.microUtilityState);
+  const settlingShared = options.memorySummaryState.shared_pending_message_count;
+  const settlingPack = options.memorySummaryState.pack_pending_message_count;
+  parts.push(
+    `Desk context: ${openDeskNotes} open notes, ${activeTimers} active timers, ${settlingShared} shared messages settling, ${settlingPack} pack-thread messages settling.`,
+  );
+  parts.push(
+    `Current desk state: ${describeDeskPresence(options.presenceStatus, options.companionState)}.`,
+  );
+  parts.push(
+    buildCharacterContinuityGuidance(options.activePack, options.companionTitle),
+  );
+  return parts.join(" ");
+}
+
+function buildContinuityPrompt(summary: MemorySummary, deskContext: string): string {
+  return `Pick up where we left off from "${summary.title}". Keep this in mind: ${summary.summary} ${deskContext}`;
 }
 
 function buildContinuityCheckInPrompt(
   summary: MemorySummary,
-  activePack: InstalledPack | null,
-  companionTitle: string,
+  deskContext: string,
 ): string {
-  return `Based on "${summary.title}", give me a calm check-in and help me resume from this thread: ${summary.summary} ${buildCharacterContinuityGuidance(activePack, companionTitle)}`;
+  return `Based on "${summary.title}", give me a calm check-in and help me resume from this thread: ${summary.summary} ${deskContext}`;
 }
 
 function buildContinuityNextStepPrompt(
   summary: MemorySummary,
-  activePack: InstalledPack | null,
-  companionTitle: string,
+  deskContext: string,
 ): string {
-  return `Based on "${summary.title}", what are the next one or two useful steps for me right now? Keep this context in mind: ${summary.summary} ${buildCharacterContinuityGuidance(activePack, companionTitle)}`;
+  return `Based on "${summary.title}", what are the next one or two useful steps for me right now? Keep this context in mind: ${summary.summary} ${deskContext}`;
 }
 
-function buildStartDayPrompt(
-  companionTitle: string,
-  activePack: InstalledPack | null,
-): string {
-  return `Help me start today with ${companionTitle}. Give me a calm check-in, point me at one useful next step, and keep the desk steady. ${buildCharacterContinuityGuidance(activePack, companionTitle)}`;
+function buildStartDayPrompt(companionTitle: string, deskContext: string): string {
+  return `Help me start today with ${companionTitle}. Give me a calm check-in, point me at one useful next step, and keep the desk steady. ${deskContext}`;
 }
 
-function buildWrapUpPrompt(
+function buildWrapUpPrompt(companionTitle: string, deskContext: string): string {
+  return `Help me wrap up today with ${companionTitle}. Summarize what matters, what should carry forward, and the next thread to pick up tomorrow. ${deskContext}`;
+}
+
+function buildCharacterCheckInPrompt(
+  companionTitle: string,
+  activePack: InstalledPack | null,
+  deskContext: string,
+): string {
+  const summary = getActiveCharacterSummary(activePack);
+  const scenario = getActiveCharacterScenario(activePack);
+  const opening = getActiveCharacterOpening(activePack);
+  const styleNotes = getActiveCharacterStyleNotes(activePack);
+  const parts = [
+    `Check in with me as ${companionTitle}.`,
+    summary ? `Character read: ${summary}` : null,
+    scenario ? `Current scenario: ${scenario}` : null,
+    opening ? `Opening tone: ${opening}` : null,
+    styleNotes.length > 0 ? `Style notes: ${styleNotes.join(" ")}` : null,
+    `Keep it short, companion-like, and useful for the next small step.`,
+    deskContext,
+  ];
+  return parts.filter(Boolean).join(" ");
+}
+
+function buildCharacterOpeningDraft(
   companionTitle: string,
   activePack: InstalledPack | null,
 ): string {
-  return `Help me wrap up today with ${companionTitle}. Summarize what matters, what should carry forward, and the next thread to pick up tomorrow. ${buildCharacterContinuityGuidance(activePack, companionTitle)}`;
+  const opening = getActiveCharacterOpening(activePack);
+  if (opening) {
+    return opening;
+  }
+  return `Check in with me as ${companionTitle} and keep the same character tone.`;
 }
 
 function getContinuityFreshnessLabel(summary: MemorySummary | null): string | null {
@@ -580,6 +679,11 @@ export function CompanionWorkspace() {
   const [memorySummaryState, setMemorySummaryState] = useState<MemorySummaryList>({
     summaries: [],
     pending_message_count: 0,
+    shared_summaries: [],
+    shared_pending_message_count: 0,
+    active_pack_id: null,
+    pack_summaries: [],
+    pack_pending_message_count: 0,
   });
   const [activePack, setActivePack] = useState<InstalledPack | null>(null);
   const activePackPreviewImageUrl = useMemo(
@@ -593,7 +697,10 @@ export function CompanionWorkspace() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
   const [isRepairingOpenClaw, setIsRepairingOpenClaw] = useState(false);
-  const latestMemorySummary = memorySummaryState.summaries[0] ?? null;
+  const latestSharedMemorySummary = memorySummaryState.shared_summaries[0] ?? null;
+  const latestPackMemorySummary = memorySummaryState.pack_summaries[0] ?? null;
+  const latestMemorySummary =
+    latestPackMemorySummary ?? memorySummaryState.summaries[0] ?? null;
   const nextMessageIdRef = useRef(2);
   const draftRef = useRef("");
   const isSendingRef = useRef(false);
@@ -2219,8 +2326,22 @@ export function CompanionWorkspace() {
   const continuityFreshnessLabel = getContinuityFreshnessLabel(latestMemorySummary);
   const activeCharacterSummary = getActiveCharacterSummary(activePack);
   const activeCharacterOpening = getActiveCharacterOpening(activePack);
+  const activeCharacterScenario = getActiveCharacterScenario(activePack);
+  const activeCharacterTags = getActiveCharacterTags(activePack).slice(0, 3);
+  const activeCharacterStyleNotes = getActiveCharacterStyleNotes(activePack).slice(0, 2);
+  const characterOriginLabel = getCharacterOriginLabel(activePack);
   const activeTodoCount = getActiveTodoCount(microUtilityState);
   const activeTimerCount = getActiveTimerCount(microUtilityState);
+  const deskContextBundle = buildDeskContextBundle({
+    activePack,
+    companionTitle,
+    companionState,
+    presenceStatus,
+    latestSharedSummary: latestSharedMemorySummary,
+    latestPackSummary: latestPackMemorySummary,
+    memorySummaryState,
+    microUtilityState,
+  });
 
   return (
     <main
@@ -2740,6 +2861,72 @@ export function CompanionWorkspace() {
             </article>
           ) : null}
 
+          {activeCharacterSummary || activeCharacterScenario || activeCharacterOpening ? (
+            <article className="character-desk" aria-label="Character lens">
+              <div className="character-desk__copy">
+                <span className="eyebrow">Character lens</span>
+                <h4>
+                  {characterOriginLabel ? `${characterOriginLabel}: ${companionTitle}` : companionTitle}
+                </h4>
+                {activeCharacterSummary ? <p>{activeCharacterSummary}</p> : null}
+                {activeCharacterScenario ? <p>Scenario: {activeCharacterScenario}</p> : null}
+                {activeCharacterOpening ? <p>Opening cue: {activeCharacterOpening}</p> : null}
+              </div>
+              <div className="character-desk__meta">
+                {activeCharacterTags.map((tag) => (
+                  <span key={tag}>{tag}</span>
+                ))}
+                {activeCharacterStyleNotes.map((note) => (
+                  <span key={note}>{note}</span>
+                ))}
+              </div>
+              <div className="character-desk__actions">
+                <button
+                  className="quick-action-button"
+                  disabled={isSending}
+                  type="button"
+                  onClick={() => {
+                    handleDraftChange(buildCharacterOpeningDraft(companionTitle, activePack));
+                  }}
+                >
+                  Use the opening line
+                </button>
+                <button
+                  className="quick-action-button"
+                  disabled={isSending}
+                  type="button"
+                  onClick={() => {
+                    handleDraftChange(
+                      buildCharacterCheckInPrompt(
+                        companionTitle,
+                        activePack,
+                        deskContextBundle,
+                      ),
+                    );
+                  }}
+                >
+                  Draft a character check-in
+                </button>
+                <button
+                  className="quick-action-button"
+                  disabled={isSending}
+                  type="button"
+                  onClick={() => {
+                    void submitMessage(
+                      buildCharacterCheckInPrompt(
+                        companionTitle,
+                        activePack,
+                        deskContextBundle,
+                      ),
+                    );
+                  }}
+                >
+                  Guide me in this tone
+                </button>
+              </div>
+            </article>
+          ) : null}
+
           {latestMemorySummary || memorySummaryState.pending_message_count > 0 ? (
             <article className="continuity-desk" aria-label="Recent continuity">
               <div className="continuity-desk__copy">
@@ -2753,14 +2940,57 @@ export function CompanionWorkspace() {
                     {latestMemorySummary.message_count} messages tucked into local memory
                   </span>
                 ) : null}
+                {latestPackMemorySummary ? (
+                  <span>Pack thread ready for {companionTitle}</span>
+                ) : null}
+                {latestSharedMemorySummary ? <span>Shared thread ready</span> : null}
                 {continuityFreshnessLabel ? <span>{continuityFreshnessLabel}</span> : null}
-                {memorySummaryState.pending_message_count > 0 ? (
+                {memorySummaryState.shared_pending_message_count > 0 ? (
                   <span>
-                    {memorySummaryState.pending_message_count} fresh messages still settling
+                    {memorySummaryState.shared_pending_message_count} shared messages still settling
+                  </span>
+                ) : null}
+                {memorySummaryState.pack_pending_message_count > 0 ? (
+                  <span>
+                    {memorySummaryState.pack_pending_message_count} pack-thread messages still settling
                   </span>
                 ) : null}
                 <span>Local memory only</span>
               </div>
+              {latestSharedMemorySummary && latestPackMemorySummary ? (
+                <div className="continuity-desk__threads">
+                  <button
+                    className="quick-action-button"
+                    disabled={isSending}
+                    type="button"
+                    onClick={() => {
+                      handleDraftChange(
+                        buildContinuityPrompt(
+                          latestSharedMemorySummary,
+                          deskContextBundle,
+                        ),
+                      );
+                    }}
+                  >
+                    Resume the shared thread
+                  </button>
+                  <button
+                    className="quick-action-button"
+                    disabled={isSending}
+                    type="button"
+                    onClick={() => {
+                      handleDraftChange(
+                        buildContinuityPrompt(
+                          latestPackMemorySummary,
+                          deskContextBundle,
+                        ),
+                      );
+                    }}
+                  >
+                    Resume the character thread
+                  </button>
+                </div>
+              ) : null}
               <div className="continuity-desk__actions">
                 <button
                   className="quick-action-button"
@@ -2770,13 +3000,9 @@ export function CompanionWorkspace() {
                     if (latestMemorySummary === null) {
                       return;
                     }
-                      handleDraftChange(
-                        buildContinuityPrompt(
-                          latestMemorySummary,
-                          activePack,
-                          companionTitle,
-                        ),
-                      );
+                    handleDraftChange(
+                      buildContinuityPrompt(latestMemorySummary, deskContextBundle),
+                    );
                   }}
                 >
                   Pick up where we left off
@@ -2789,13 +3015,12 @@ export function CompanionWorkspace() {
                     if (latestMemorySummary === null) {
                       return;
                     }
-                      void submitMessage(
-                        buildContinuityNextStepPrompt(
-                          latestMemorySummary,
-                          activePack,
-                          companionTitle,
-                        ),
-                      );
+                    void submitMessage(
+                      buildContinuityNextStepPrompt(
+                        latestMemorySummary,
+                        deskContextBundle,
+                      ),
+                    );
                   }}
                 >
                   What should we do next?
@@ -2808,13 +3033,12 @@ export function CompanionWorkspace() {
                     if (latestMemorySummary === null) {
                       return;
                     }
-                      handleDraftChange(
-                        buildContinuityCheckInPrompt(
-                          latestMemorySummary,
-                          activePack,
-                          companionTitle,
-                        ),
-                      );
+                    handleDraftChange(
+                      buildContinuityCheckInPrompt(
+                        latestMemorySummary,
+                        deskContextBundle,
+                      ),
+                    );
                   }}
                 >
                   Turn this into a check-in
@@ -2846,7 +3070,8 @@ export function CompanionWorkspace() {
             <div className="daily-routines-desk__meta">
               <span>{activeTodoCount} open notes</span>
               <span>{activeTimerCount} active timers</span>
-              <span>{memorySummaryState.pending_message_count} messages still settling</span>
+              <span>{memorySummaryState.shared_pending_message_count} shared messages still settling</span>
+              <span>{memorySummaryState.pack_pending_message_count} pack-thread messages still settling</span>
             </div>
             <div className="daily-routines-desk__actions">
               <button
@@ -2854,7 +3079,7 @@ export function CompanionWorkspace() {
                 disabled={isSending}
                 type="button"
                 onClick={() => {
-                  void submitMessage(buildStartDayPrompt(companionTitle, activePack));
+                  void submitMessage(buildStartDayPrompt(companionTitle, deskContextBundle));
                 }}
               >
                 Start the day
@@ -2865,13 +3090,12 @@ export function CompanionWorkspace() {
                 type="button"
                 onClick={() => {
                   if (latestMemorySummary) {
-                      void submitMessage(
-                        buildContinuityNextStepPrompt(
-                          latestMemorySummary,
-                          activePack,
-                          companionTitle,
-                        ),
-                      );
+                    void submitMessage(
+                      buildContinuityNextStepPrompt(
+                        latestMemorySummary,
+                        deskContextBundle,
+                      ),
+                    );
                     return;
                   }
                   void submitMessage("How should we move forward from here?");
@@ -2894,7 +3118,7 @@ export function CompanionWorkspace() {
                 disabled={isSending}
                 type="button"
                 onClick={() => {
-                  void submitMessage(buildWrapUpPrompt(companionTitle, activePack));
+                  void submitMessage(buildWrapUpPrompt(companionTitle, deskContextBundle));
                 }}
               >
                 Wrap up today
