@@ -57,6 +57,8 @@ export type InstalledPack = {
   active: boolean;
   icon_data_url: string | null;
   installed_at: string | null;
+  install_source?: string | null;
+  import_filename?: string | null;
   system_prompt?: string | null;
   style_rules?: string[];
   voice?: PackVoiceConfig;

@@ -38,6 +38,41 @@ function formatInstallDate(value: string | null): string {
   return parsedDate.toLocaleDateString();
 }
 
+function formatFileSize(file: File | null): string | null {
+  if (!file) {
+    return null;
+  }
+
+  if (file.size < 1024 * 1024) {
+    return `${Math.max(1, Math.round(file.size / 1024))} KB`;
+  }
+
+  return `${(file.size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getImportSourceLabel(pack: InstalledPack): string {
+  if (pack.install_source === "tavern-card") {
+    return "Imported from Tavern card";
+  }
+  if (pack.install_source === "zip") {
+    return "Signed local zip";
+  }
+  return "Local pack";
+}
+
+function getImportSourceDetail(pack: InstalledPack): string {
+  if (pack.import_filename) {
+    return pack.import_filename;
+  }
+  if (pack.install_source === "tavern-card") {
+    return "Converted locally from a Tavern PNG.";
+  }
+  if (pack.install_source === "zip") {
+    return "Installed from a signed pack archive.";
+  }
+  return "Present on this device.";
+}
+
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -130,6 +165,8 @@ export function PersonalityPackSettings({
     () => packs.find((pack) => pack.id === activePackId) ?? null,
     [activePackId, packs],
   );
+  const zipFileSize = useMemo(() => formatFileSize(zipFile), [zipFile]);
+  const tavernFileSize = useMemo(() => formatFileSize(tavernFile), [tavernFile]);
 
   async function handleInstallZip(): Promise<void> {
     if (!zipFile || isInstallingZip) {
@@ -223,6 +260,11 @@ export function PersonalityPackSettings({
         <article className="settings-card">
           <span className="settings-card__label">Import pack zip</span>
           <p>Install a signed `pack.json` archive with local assets and companion rules.</p>
+          <ul className="pack-settings__source-list">
+            <li>Best for full custom voice, model, and behavior packs.</li>
+            <li>Stays local to this device after install.</li>
+            <li>Requires a signed archive with a valid `pack.json`.</li>
+          </ul>
           <label className="pack-settings__file-label" htmlFor="pack-zip-upload">
             Choose zip archive
           </label>
@@ -245,12 +287,26 @@ export function PersonalityPackSettings({
           >
             {isInstallingZip ? "Installing pack..." : "Install pack"}
           </button>
-          {zipFile ? <p className="pack-settings__file-name">{zipFile.name}</p> : null}
+          {zipFile ? (
+            <div className="pack-settings__file-preview">
+              <p className="pack-settings__file-name">{zipFile.name}</p>
+              <div className="pack-settings__file-meta">
+                <span>Signed zip import</span>
+                {zipFileSize ? <span>{zipFileSize}</span> : null}
+                <span>Installs only on this device</span>
+              </div>
+            </div>
+          ) : null}
         </article>
 
         <article className="settings-card">
           <span className="settings-card__label">Import Tavern card</span>
           <p>Convert a Tavern Card V2 or V3 PNG into a local companion pack.</p>
+          <ul className="pack-settings__source-list">
+            <li>Fastest way to bring in an existing character card.</li>
+            <li>Converts the card into a local pack on install.</li>
+            <li>Best for personality-first imports before richer assets arrive.</li>
+          </ul>
           <label className="pack-settings__file-label" htmlFor="tavern-card-upload">
             Choose Tavern PNG
           </label>
@@ -274,7 +330,14 @@ export function PersonalityPackSettings({
             {isImportingTavern ? "Converting card..." : "Convert and install"}
           </button>
           {tavernFile ? (
-            <p className="pack-settings__file-name">{tavernFile.name}</p>
+            <div className="pack-settings__file-preview">
+              <p className="pack-settings__file-name">{tavernFile.name}</p>
+              <div className="pack-settings__file-meta">
+                <span>Tavern card import</span>
+                {tavernFileSize ? <span>{tavernFileSize}</span> : null}
+                <span>Converted locally after import</span>
+              </div>
+            </div>
           ) : null}
         </article>
       </div>
@@ -324,6 +387,11 @@ export function PersonalityPackSettings({
                 <span>Age {formatContentRating(pack)}</span>
                 <span>{pack.license_name}</span>
                 <span>Installed {formatInstallDate(pack.installed_at)}</span>
+              </div>
+
+              <div className="pack-card__source">
+                <span className="pack-card__source-badge">{getImportSourceLabel(pack)}</span>
+                <span>{getImportSourceDetail(pack)}</span>
               </div>
 
               <p className="pack-card__copy">

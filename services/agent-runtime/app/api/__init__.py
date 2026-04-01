@@ -462,6 +462,8 @@ class InstalledPackResponse(BaseModel):
     active: bool
     icon_data_url: str | None
     installed_at: str | None
+    install_source: str | None = None
+    import_filename: str | None = None
     system_prompt: str | None = None
     style_rules: list[str] = Field(default_factory=list)
     voice: dict[str, str | None] = Field(default_factory=dict)

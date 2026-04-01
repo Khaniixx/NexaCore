@@ -219,6 +219,8 @@ def test_install_pack_archive_persists_and_auto_selects() -> None:
     assert payload["active_pack_id"] == "sunrise-companion"
     assert payload["pack"]["display_name"] == "Sunrise"
     assert payload["pack"]["active"] is True
+    assert payload["pack"]["install_source"] == "zip"
+    assert payload["pack"]["import_filename"] == "sunrise-pack.zip"
     assert payload["pack"]["model"]["renderer"] == "live2d"
     assert payload["pack"]["model"]["asset_path"] == "models/sunrise.model3.json"
     assert payload["pack"]["model"]["blink_hook"] == "blink-soft"
@@ -342,6 +344,8 @@ def test_import_tavern_card_creates_pack_with_local_signature(tmp_path: Path) ->
     )
     assert installed_manifest.exists()
     manifest_payload = json.loads(installed_manifest.read_text(encoding="utf-8"))
+    assert response.json()["pack"]["install_source"] == "tavern-card"
+    assert response.json()["pack"]["import_filename"] == "imported-friend.png"
     assert (
         manifest_payload["extensions"]["tavern_card"]["unknown_fields"]["unknown_custom_field"]
         == {"mood": "gentle"}

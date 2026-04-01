@@ -435,6 +435,8 @@ class InstalledPackSummary(BaseModel):
     active: bool
     icon_data_url: str | None
     installed_at: str | None
+    install_source: str | None = None
+    import_filename: str | None = None
     system_prompt: str | None = None
     style_rules: list[str] = Field(default_factory=list)
     voice: dict[str, str | None] = Field(default_factory=dict)
@@ -637,8 +639,8 @@ def _manifest_path_for_pack_dir(pack_dir: Path) -> Path:
     return pack_dir / "pack.json"
 
 
-def _asset_file_map(pack_dir: Path) -> dict[str, Path]:
-    resolved_pack_dir = _resolved_pack_dir_within_root(pack_dir)
+def _asset_file_map(pack_id: str) -> dict[str, Path]:
+    resolved_pack_dir = _pack_dir_for_id(pack_id)
     asset_paths: dict[str, Path] = {}
     for candidate in resolved_pack_dir.rglob("*"):
         if not candidate.is_file():
@@ -655,8 +657,9 @@ def _asset_file_map(pack_dir: Path) -> dict[str, Path]:
 
 def _asset_path_for_pack_dir(pack_dir: Path, asset_path: str) -> Path:
     normalized_asset_path = _normalized_relative_path(asset_path)
+    resolved_pack_dir = _resolved_pack_dir_within_root(pack_dir)
     try:
-        return _asset_file_map(pack_dir)[normalized_asset_path]
+        return _asset_file_map(resolved_pack_dir.name)[normalized_asset_path]
     except KeyError as error:
         raise ValueError("Referenced asset was not found in the pack.") from error
 
@@ -733,6 +736,8 @@ def _summary_from_manifest(manifest: PackManifest) -> InstalledPackSummary:
         active=manifest.id == get_active_pack_id(),
         icon_data_url=_icon_data_url(manifest),
         installed_at=metadata.installed_at if metadata is not None else None,
+        install_source=metadata.source if metadata is not None else None,
+        import_filename=metadata.archive_name if metadata is not None else None,
         system_prompt=manifest.personality.system_prompt,
         style_rules=list(manifest.personality.style_rules),
         voice=manifest.personality.voice.model_dump(mode="json"),

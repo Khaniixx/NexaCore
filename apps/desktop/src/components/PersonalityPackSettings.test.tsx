@@ -36,6 +36,8 @@ function createPackApiMock() {
         active: true,
         icon_data_url: null,
         installed_at: "2026-03-29T00:00:00+00:00",
+        install_source: "zip",
+        import_filename: "sunrise-pack.zip",
       },
       {
         id: "evening-companion",
@@ -54,6 +56,8 @@ function createPackApiMock() {
         active: false,
         icon_data_url: null,
         installed_at: "2026-03-29T00:00:00+00:00",
+        install_source: "tavern-card",
+        import_filename: "evening-card.png",
       },
     ],
   };
@@ -257,6 +261,8 @@ function createMarketplaceApiMock() {
       active: true,
       icon_data_url: null,
       installed_at: "2026-03-29T00:00:00+00:00",
+      install_source: "zip",
+      import_filename: "sunrise-pack.zip",
     },
   });
 
@@ -282,6 +288,8 @@ describe("PersonalityPackSettings", () => {
     expect(await screen.findByText("Sunrise")).toBeInTheDocument();
     expect(screen.getByText("Evening")).toBeInTheDocument();
     expect(await screen.findByText("Bloom Starter Pack")).toBeInTheDocument();
+    expect(screen.getByText("Signed local zip")).toBeInTheDocument();
+    expect(screen.getByText("sunrise-pack.zip")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Use this pack" }));
 
@@ -309,6 +317,8 @@ describe("PersonalityPackSettings", () => {
       type: "application/zip",
     });
     await user.upload(uploadInput, zipFile);
+    expect(screen.getByText("Signed zip import")).toBeInTheDocument();
+    expect(screen.getByText("Installs only on this device")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Install pack" }));
 
     await waitFor(() => {
@@ -338,6 +348,8 @@ describe("PersonalityPackSettings", () => {
       type: "image/png",
     });
     await user.upload(uploadInput, pngFile);
+    expect(screen.getByText("Tavern card import")).toBeInTheDocument();
+    expect(screen.getByText("Converted locally after import")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Convert and install" }));
 
     await waitFor(() => {
