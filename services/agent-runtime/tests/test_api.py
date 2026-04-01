@@ -1724,5 +1724,5 @@ def test_pack_model_asset_route_serves_installed_model_asset() -> None:
     asset_response = client.get("/api/packs/sunrise-companion/model-asset")
 
     assert asset_response.status_code == 200
-    assert asset_response.headers["content-type"] == "application/octet-stream"
+    assert asset_response.headers["content-type"] == "application/json"
     assert asset_response.content == b'{"version":"1.0"}'
