@@ -13,10 +13,13 @@ import { CompanionAvatar } from "./CompanionAvatar";
 type CompanionStageProps = {
   state: CompanionState;
   displayName?: string;
+  packId?: string;
   avatarConfig?: PackAvatarConfig;
   modelConfig?: PackModelConfig;
   voiceConfig?: PackVoiceConfig;
   iconDataUrl?: string | null;
+  previewImageUrl?: string | null;
+  modelAssetUrl?: string | null;
   presenceAnchor?:
     | "desktop-right"
     | "desktop-left"
@@ -187,9 +190,12 @@ function getSpeechPlaybackIntensity(
 function renderLive2DStage({
   state,
   displayName = "Aster",
+  packId,
   avatarConfig,
   modelConfig,
   iconDataUrl,
+  previewImageUrl,
+  modelAssetUrl,
   presenceAnchor = "workspace",
   presencePinned = false,
   presenceTargetTitle,
@@ -240,8 +246,10 @@ function renderLive2DStage({
       aria-live="polite"
       aria-label={`${displayName} avatar is ${state}`}
       data-stage-renderer="live2d"
+      data-pack-id={packId ?? "none"}
       data-live2d-hook={live2dHook}
       data-model-asset={modelConfig?.asset_path ?? "missing"}
+      data-model-asset-url={modelAssetUrl ?? "missing"}
       data-attachment-mode={attachmentMode}
       data-attachment-label={attachmentLabel}
       data-stage-label={stageLabel}
@@ -273,11 +281,11 @@ function renderLive2DStage({
         <div className="live2d-stage__spotlight" />
         <div className={`live2d-stage__focus live2d-stage__focus--${state}`} />
         <div className="live2d-stage__portrait">
-          {modelConfig?.preview_image_path || iconDataUrl ? (
+          {previewImageUrl || iconDataUrl ? (
             <img
               alt=""
               className="live2d-stage__image"
-              src={iconDataUrl ?? undefined}
+              src={previewImageUrl ?? iconDataUrl ?? undefined}
             />
           ) : (
             <span className="live2d-stage__fallback">
@@ -329,5 +337,17 @@ export function CompanionStage(props: CompanionStageProps) {
     return renderLive2DStage(props);
   }
 
-  return <CompanionAvatar {...props} />;
+  return (
+    <CompanionAvatar
+      state={props.state}
+      displayName={props.displayName}
+      avatarConfig={props.avatarConfig}
+      modelConfig={props.modelConfig}
+      voiceConfig={props.voiceConfig}
+      iconDataUrl={props.iconDataUrl}
+      presenceAnchor={props.presenceAnchor}
+      presencePinned={props.presencePinned}
+      presenceTargetTitle={props.presenceTargetTitle}
+    />
+  );
 }

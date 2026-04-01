@@ -1,3 +1,6 @@
+import base64
+import io
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -19,6 +22,10 @@ from app.tools.open_url import OpenUrlResult
 
 
 client = TestClient(app)
+
+PNG_1X1_BASE64 = (
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7Zk2QAAAAASUVORK5CYII="
+)
 
 
 @pytest.fixture(autouse=True)
@@ -55,6 +62,123 @@ def temp_state_files(tmp_path, monkeypatch) -> Path:
         tmp_path / "app_launcher_state.json",
     )
     return preferences_file
+
+
+def _sign_manifest(manifest: dict[str, object]) -> dict[str, object]:
+    signature_bytes = personality_packs._rsa_sign_rs256(
+        personality_packs._canonical_manifest_payload(manifest),
+        modulus=personality_packs.LOCAL_IMPORTER_RSA_MODULUS,
+        private_exponent=personality_packs.LOCAL_IMPORTER_RSA_PRIVATE_EXPONENT,
+    )
+    manifest["security"]["signature"]["value"] = (
+        base64.urlsafe_b64encode(signature_bytes).rstrip(b"=").decode("ascii")
+    )
+    return manifest
+
+
+def make_pack_archive(
+    *,
+    pack_id: str = "sunrise-companion",
+    display_name: str = "Sunrise",
+) -> bytes:
+    icon_bytes = base64.b64decode(PNG_1X1_BASE64)
+    model_bytes = b'{"version":"1.0"}'
+    manifest = {
+        "schema_version": "1.0",
+        "id": pack_id,
+        "name": f"{display_name} Pack",
+        "version": "1.0.0",
+        "author": {
+            "name": "Companion Labs",
+            "website": "https://example.com",
+            "contact_email": "packs@example.com",
+        },
+        "license": {
+            "name": "MIT",
+            "spdx_identifier": "MIT",
+            "url": "https://opensource.org/license/mit",
+        },
+        "content_rating": {
+            "minimum_age": 13,
+            "maximum_age": None,
+            "tags": ["friendly", "local-first"],
+        },
+        "personality": {
+            "display_name": display_name,
+            "system_prompt": "Stay warm, grounded, and practical.",
+            "style_rules": [
+                "Speak clearly.",
+                "Keep one persistent companion identity.",
+            ],
+            "voice": {
+                "provider": "local",
+                "voice_id": "default",
+                "locale": "en-US",
+                "style": "warm",
+            },
+            "avatar": {
+                "presentation_mode": "portrait",
+                "stage_label": "Pack portrait",
+                "accent_color": "#8FAEFF",
+                "aura_color": "#8CE6D8",
+                "icon_path": "assets/icon.png",
+                "model_path": None,
+                "idle_animation": "idle",
+                "listening_animation": "listening",
+                "thinking_animation": "thinking",
+                "talking_animation": "talking",
+                "reaction_animation": "reaction",
+                "audio_cues": {},
+            },
+            "model": {
+                "renderer": "live2d",
+                "asset_path": "models/sunrise.model3.json",
+                "preview_image_path": "assets/icon.png",
+                "idle_hook": "idle-loop",
+                "attached_hook": "dock-right",
+                "perched_hook": "perch-top",
+                "speaking_hook": "speak-soft",
+                "blink_hook": "blink-soft",
+                "look_at_hook": "look-at-cursor",
+                "idle_eye_hook": "idle-glance",
+            },
+        },
+        "memory_defaults": {
+            "long_term_memory_enabled": True,
+            "summary_frequency_messages": 25,
+            "opt_out_flags": ["cloud_backup"],
+        },
+        "capabilities": {
+            "required": [
+                {
+                    "id": "overlay.render",
+                    "justification": "Show the selected companion on screen.",
+                }
+            ],
+            "optional": [],
+        },
+        "security": {
+            "signature": {
+                "algorithm": "RS256",
+                "key_id": personality_packs.LOCAL_IMPORTER_KEY_ID,
+                "public_key": personality_packs.LOCAL_IMPORTER_PUBLIC_KEY,
+                "value": "",
+            },
+            "asset_hashes": {
+                "assets/icon.png": f"sha256:{personality_packs._sha256_hex(icon_bytes)}",
+                "models/sunrise.model3.json": f"sha256:{personality_packs._sha256_hex(model_bytes)}",
+            },
+        },
+        "extensions": {},
+    }
+    _sign_manifest(manifest)
+
+    archive_buffer = io.BytesIO()
+    with personality_packs.zipfile.ZipFile(archive_buffer, "w") as archive_file:
+        archive_file.writestr("pack.json", json.dumps(manifest, indent=2))
+        archive_file.writestr("assets/icon.png", icon_bytes)
+        archive_file.writestr("models/sunrise.model3.json", model_bytes)
+    return archive_buffer.getvalue()
 
 
 def make_dependency(
@@ -1562,3 +1686,43 @@ def test_pack_selection_rejects_invalid_pack_id_shape() -> None:
     )
 
     assert response.status_code == 422
+
+
+def test_pack_preview_image_route_serves_installed_pack_asset() -> None:
+    archive_bytes = make_pack_archive()
+
+    install_response = client.post(
+        "/api/packs/install",
+        json={
+            "filename": "sunrise-pack.zip",
+            "archive_base64": base64.b64encode(archive_bytes).decode("ascii"),
+        },
+    )
+
+    assert install_response.status_code == 200
+
+    asset_response = client.get("/api/packs/sunrise-companion/preview-image")
+
+    assert asset_response.status_code == 200
+    assert asset_response.headers["content-type"] == "image/png"
+    assert asset_response.content == base64.b64decode(PNG_1X1_BASE64)
+
+
+def test_pack_model_asset_route_serves_installed_model_asset() -> None:
+    archive_bytes = make_pack_archive()
+
+    install_response = client.post(
+        "/api/packs/install",
+        json={
+            "filename": "sunrise-pack.zip",
+            "archive_base64": base64.b64encode(archive_bytes).decode("ascii"),
+        },
+    )
+
+    assert install_response.status_code == 200
+
+    asset_response = client.get("/api/packs/sunrise-companion/model-asset")
+
+    assert asset_response.status_code == 200
+    assert asset_response.headers["content-type"] == "application/json"
+    assert asset_response.content == b'{"version":"1.0"}'

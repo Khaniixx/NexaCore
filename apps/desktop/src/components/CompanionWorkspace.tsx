@@ -22,7 +22,11 @@ import {
   microUtilityApi,
   type MicroUtilityState,
 } from "../microUtilityApi";
-import { packApi, type InstalledPack } from "../packApi";
+import {
+  buildPackAssetUrl,
+  packApi,
+  type InstalledPack,
+} from "../packApi";
 import {
   speechInputApi,
   type SpeechInputSettings,
@@ -139,6 +143,17 @@ function waitForPacing(delayMs: number): Promise<void> {
 
 function getActivePackFromResponse(packs: InstalledPack[]): InstalledPack | null {
   return packs.find((pack) => pack.active) ?? null;
+}
+
+function getPackAssetUrl(
+  activePack: InstalledPack | null,
+  assetType: "preview-image" | "model-asset",
+  assetPath: string | null | undefined,
+): string | null {
+  if (!activePack || typeof assetPath !== "string" || assetPath.trim().length === 0) {
+    return null;
+  }
+  return buildPackAssetUrl(activePack.id, assetType);
 }
 
 function getAmbientDeskCue(state: CompanionState, companionTitle: string): string {
@@ -446,6 +461,14 @@ export function CompanionWorkspace() {
   const [isSavingPresence, setIsSavingPresence] = useState(false);
   const [installerCompleted, setInstallerCompleted] = useState(false);
   const [activePack, setActivePack] = useState<InstalledPack | null>(null);
+  const activePackPreviewImageUrl = useMemo(
+    () => getPackAssetUrl(activePack, "preview-image", activePack?.model?.preview_image_path),
+    [activePack],
+  );
+  const activePackModelAssetUrl = useMemo(
+    () => getPackAssetUrl(activePack, "model-asset", activePack?.model?.asset_path),
+    [activePack],
+  );
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
   const [isRepairingOpenClaw, setIsRepairingOpenClaw] = useState(false);
@@ -2123,9 +2146,12 @@ export function CompanionWorkspace() {
         <CompanionStage
           state={companionState}
           displayName={companionTitle}
+          packId={activePack?.id}
           avatarConfig={activePack?.avatar}
           modelConfig={activePack?.model}
           iconDataUrl={activePack?.icon_data_url}
+          previewImageUrl={activePackPreviewImageUrl}
+          modelAssetUrl={activePackModelAssetUrl}
           presenceAnchor={presenceStatus?.anchor}
           presencePinned={desktopPresencePinned}
           presenceTargetTitle={presenceTarget?.title}

@@ -637,28 +637,33 @@ def _manifest_path_for_pack_dir(pack_dir: Path) -> Path:
     return pack_dir / "pack.json"
 
 
-def _asset_file_map(pack_dir: Path) -> dict[str, Path]:
-    resolved_pack_dir = _resolved_pack_dir_within_root(pack_dir)
-    asset_paths: dict[str, Path] = {}
-    for candidate in resolved_pack_dir.rglob("*"):
-        if not candidate.is_file():
-            continue
-        resolved_candidate = candidate.resolve()
-        if os.path.commonpath(
-            [os.fspath(resolved_pack_dir), os.fspath(resolved_candidate)]
-        ) != os.fspath(resolved_pack_dir):
-            continue
-        relative_candidate = resolved_candidate.relative_to(resolved_pack_dir).as_posix()
-        asset_paths[relative_candidate] = resolved_candidate
-    return asset_paths
+def _declared_asset_path(manifest: PackManifest, asset_path: str) -> str:
+    normalized_asset_path = _normalized_relative_path(asset_path)
+    for declared_asset_path in manifest.security.asset_hashes:
+        if declared_asset_path == normalized_asset_path:
+            return declared_asset_path
+    raise ValueError("Referenced asset was not found in the pack.")
 
 
 def _asset_path_for_pack_dir(pack_dir: Path, asset_path: str) -> Path:
-    normalized_asset_path = _normalized_relative_path(asset_path)
-    try:
-        return _asset_file_map(pack_dir)[normalized_asset_path]
-    except KeyError as error:
-        raise ValueError("Referenced asset was not found in the pack.") from error
+    resolved_pack_dir = _resolved_pack_dir_within_root(pack_dir)
+    manifest = PackManifest.model_validate_json(
+        _manifest_path_for_pack_dir(resolved_pack_dir).read_text(encoding="utf-8")
+    )
+    trusted_asset_path = _declared_asset_path(manifest, asset_path)
+    resolved_asset_path = Path(
+        os.path.realpath(
+            os.path.join(os.fspath(resolved_pack_dir), *PurePosixPath(trusted_asset_path).parts)
+        )
+    )
+    if (
+        os.path.commonpath(
+            [os.fspath(resolved_pack_dir), os.fspath(resolved_asset_path)]
+        )
+        != os.fspath(resolved_pack_dir)
+    ):
+        raise ValueError("Path escapes base directory")
+    return resolved_asset_path
 
 
 def _write_install_metadata(pack_dir: Path, *, source: str, archive_name: str) -> None:
@@ -862,6 +867,28 @@ def _find_installed_manifest(pack_id: str) -> PackManifest | None:
     return None
 
 
+def get_pack_preview_image_path(pack_id: str) -> Path:
+    """Resolve the installed preview image declared by a pack manifest."""
+
+    manifest = _find_installed_manifest(pack_id)
+    if manifest is None:
+        raise ValueError(f"Installed pack not found: {pack_id.strip().lower()}")
+    preview_image_path = manifest.personality.model.preview_image_path
+    if preview_image_path is None:
+        raise ValueError("Pack does not declare a preview image.")
+    return _asset_path_for_pack_dir(_pack_dir_for_id(manifest.id), preview_image_path)
+
+
+def get_pack_model_asset_path(pack_id: str) -> Path:
+    """Resolve the installed model asset declared by a pack manifest."""
+
+    manifest = _find_installed_manifest(pack_id)
+    if manifest is None:
+        raise ValueError(f"Installed pack not found: {pack_id.strip().lower()}")
+    asset_path = manifest.personality.model.asset_path
+    if asset_path is None:
+        raise ValueError("Pack does not declare a model asset.")
+    return _asset_path_for_pack_dir(_pack_dir_for_id(manifest.id), asset_path)
 def install_pack_archive(*, filename: str, archive_bytes: bytes) -> dict[str, object]:
     """Install a zipped personality pack after validating its schema and assets."""
 
