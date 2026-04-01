@@ -514,6 +514,27 @@ def _string_list(value: object) -> list[str]:
 def _character_profile_from_manifest(manifest: PackManifest) -> dict[str, object]:
     source = manifest.extensions.get("source")
     normalized_source = source if isinstance(source, str) and source.strip() else "pack"
+    extension_character_profile = manifest.extensions.get("character_profile")
+    if isinstance(extension_character_profile, dict):
+        return {
+            "origin": normalized_source,
+            "summary": _compact_text(extension_character_profile.get("summary"))
+            or _compact_text(manifest.personality.system_prompt),
+            "persona": _compact_text(extension_character_profile.get("persona")),
+            "scenario": _compact_text(extension_character_profile.get("scenario")),
+            "opening_message": _compact_text(
+                extension_character_profile.get("opening_message")
+            ),
+            "example_dialogue": _compact_text(
+                extension_character_profile.get("example_dialogue")
+            ),
+            "creator_notes": _compact_text(
+                extension_character_profile.get("creator_notes")
+            ),
+            "tags": _string_list(extension_character_profile.get("tags")),
+            "style_notes": _string_list(extension_character_profile.get("style_notes"))
+            or [note for note in manifest.personality.style_rules[:3] if note.strip()],
+        }
     tavern_card = manifest.extensions.get("tavern_card")
     tavern_fields = {}
     if isinstance(tavern_card, dict):
@@ -1516,6 +1537,52 @@ def _build_imported_vrm_manifest(
     return manifest, model_filename
 
 
+def _build_character_system_prompt(
+    *,
+    display_name: str,
+    summary: str,
+    scenario: str | None,
+    opening_message: str | None,
+    style_notes: list[str],
+) -> str:
+    sections = [
+        f"You are {display_name}, the user's persistent local desktop companion.",
+        f"Character summary: {summary}",
+        "Keep one continuous identity across contexts, not separate assistant modes.",
+    ]
+    if scenario:
+        sections.append(f"Current scenario: {scenario}")
+    if opening_message:
+        sections.append(f"Opening tone: {opening_message}")
+    if style_notes:
+        sections.append("Style notes: " + " ".join(style_notes))
+    return "\n\n".join(sections)
+
+
+def _unique_pack_id(base_pack_id: str) -> str:
+    candidate_id = base_pack_id
+    suffix = 2
+    while _find_installed_manifest(candidate_id) is not None:
+        candidate_id = f"{base_pack_id}-{suffix}"
+        suffix += 1
+    return candidate_id
+
+
+def _copy_asset_payload(
+    source_manifest: PackManifest,
+    *,
+    asset_path: str | None,
+) -> tuple[str | None, bytes | None, str | None]:
+    if asset_path is None:
+        return None, None, None
+    resolved_path = _asset_path_for_pack_dir(
+        _pack_dir_for_id(source_manifest.id), asset_path
+    )
+    if not resolved_path.exists() or not resolved_path.is_file():
+        return None, None, None
+    return resolved_path.suffix.lower(), resolved_path.read_bytes(), asset_path
+
+
 def import_tavern_card(*, filename: str, image_bytes: bytes) -> dict[str, object]:
     """Convert a Tavern Card PNG into an installed personality pack."""
 
@@ -1584,4 +1651,240 @@ def import_vrm_model(*, filename: str, vrm_bytes: bytes) -> dict[str, object]:
     return {
         "pack": summary.model_dump(mode="json"),
         "active_pack_id": get_active_pack_id(),
+    }
+
+
+def create_local_character_pack(
+    *,
+    display_name: str,
+    summary: str,
+    opening_message: str | None,
+    scenario: str | None,
+    style_notes: list[str],
+    voice_provider: str,
+    voice_id: str,
+    voice_model_id: str | None,
+    voice_locale: str | None,
+    voice_style: str | None,
+    source_pack_id: str | None,
+    portrait_filename: str | None,
+    portrait_bytes: bytes | None,
+) -> dict[str, object]:
+    """Create one local character pack from simple builder fields."""
+
+    normalized_display_name = display_name.strip()
+    normalized_summary = summary.strip()
+    if not normalized_display_name:
+        raise ValueError("Display name is required.")
+    if not normalized_summary:
+        raise ValueError("Character summary is required.")
+
+    normalized_opening = opening_message.strip() if opening_message else None
+    if normalized_opening == "":
+        normalized_opening = None
+    normalized_scenario = scenario.strip() if scenario else None
+    if normalized_scenario == "":
+        normalized_scenario = None
+    normalized_style_notes = [note.strip() for note in style_notes if note.strip()]
+    normalized_voice_provider = voice_provider.strip().lower() or "local"
+    normalized_voice_id = voice_id.strip() or "default"
+    normalized_pack_id = _unique_pack_id(_slugify_pack_id(normalized_display_name))
+
+    source_manifest: PackManifest | None = None
+    if source_pack_id is not None and source_pack_id.strip():
+        source_manifest = _find_installed_manifest(source_pack_id.strip())
+        if source_manifest is None:
+            raise ValueError("Selected body source pack was not found.")
+
+    model_renderer = "shell"
+    model_asset_path: str | None = None
+    preview_image_path: str | None = None
+    icon_path: str | None = None
+    avatar_presentation_mode = "portrait" if portrait_bytes is not None else "shell"
+    copied_assets: dict[str, bytes] = {}
+
+    if (
+        source_manifest is not None
+        and source_manifest.personality.model.renderer == "vrm"
+    ):
+        source_asset_path = source_manifest.personality.model.asset_path
+        if source_asset_path is None:
+            raise ValueError("Selected body source pack does not declare a VRM asset.")
+        resolved_model_path = _asset_path_for_pack_dir(
+            _pack_dir_for_id(source_manifest.id),
+            source_asset_path,
+        )
+        model_suffix = resolved_model_path.suffix.lower() or ".vrm"
+        model_asset_path = f"models/{normalized_pack_id}{model_suffix}"
+        copied_assets[model_asset_path] = resolved_model_path.read_bytes()
+        model_renderer = "vrm"
+        avatar_presentation_mode = "model"
+
+        preview_suffix, preview_bytes, _ = _copy_asset_payload(
+            source_manifest,
+            asset_path=source_manifest.personality.model.preview_image_path,
+        )
+        if preview_bytes is not None and preview_suffix is not None:
+            preview_image_path = f"assets/preview{preview_suffix}"
+            copied_assets[preview_image_path] = preview_bytes
+
+    if portrait_bytes is not None:
+        portrait_extension = (
+            Path(portrait_filename or "portrait.png").suffix.lower() or ".png"
+        )
+        icon_path = f"assets/portrait{portrait_extension}"
+        preview_image_path = icon_path
+        copied_assets[icon_path] = portrait_bytes
+        if model_renderer == "shell":
+            avatar_presentation_mode = "portrait"
+
+    style_rules = [
+        "Keep one continuous companion identity across contexts.",
+        "Sound grounded, present, and practically helpful.",
+        *normalized_style_notes[:3],
+    ]
+    manifest = {
+        "schema_version": PACK_SCHEMA_VERSION,
+        "id": normalized_pack_id,
+        "name": f"{normalized_display_name} Character Pack",
+        "version": "1.0.0",
+        "author": {
+            "name": "Local Character Builder",
+            "website": None,
+            "contact_email": None,
+        },
+        "license": {
+            "name": "User-authored local pack",
+            "spdx_identifier": None,
+            "url": None,
+        },
+        "content_rating": {
+            "minimum_age": 13,
+            "maximum_age": None,
+            "tags": ["local-character", "builder-pack"],
+        },
+        "personality": {
+            "display_name": normalized_display_name,
+            "system_prompt": _build_character_system_prompt(
+                display_name=normalized_display_name,
+                summary=normalized_summary,
+                scenario=normalized_scenario,
+                opening_message=normalized_opening,
+                style_notes=normalized_style_notes,
+            ),
+            "style_rules": style_rules,
+            "voice": {
+                "provider": normalized_voice_provider,
+                "voice_id": normalized_voice_id,
+                "model_id": voice_model_id.strip() if voice_model_id else None,
+                "locale": voice_locale.strip() if voice_locale else "en-US",
+                "style": voice_style.strip() if voice_style else "conversational",
+                "reference_sample_path": None,
+                "fallback_provider": "browser",
+                "rvc_enabled": False,
+                "rvc_model_id": None,
+                "rvc_model_path": None,
+            },
+            "avatar": {
+                "presentation_mode": avatar_presentation_mode,
+                "stage_label": "Local builder",
+                "accent_color": "#9db9ff",
+                "aura_color": "#87ead8",
+                "icon_path": icon_path,
+                "model_path": model_asset_path,
+                "idle_animation": "idle",
+                "listening_animation": "listening",
+                "thinking_animation": "thinking",
+                "talking_animation": "talking",
+                "reaction_animation": "reaction",
+                "audio_cues": {},
+            },
+            "model": {
+                "renderer": model_renderer,
+                "asset_path": model_asset_path,
+                "preview_image_path": preview_image_path,
+                "idle_hook": "idle",
+                "attached_hook": "attached",
+                "perched_hook": "perched",
+                "speaking_hook": "speaking",
+                "blink_hook": "blink",
+                "look_at_hook": "look-at",
+                "idle_eye_hook": "idle-eyes",
+            },
+        },
+        "memory_defaults": {
+            "long_term_memory_enabled": True,
+            "summary_frequency_messages": 25,
+            "opt_out_flags": ["cloud_backup", "public_sharing"],
+        },
+        "capabilities": {
+            "required": [
+                {
+                    "id": "overlay.render",
+                    "justification": "Render the selected companion identity on the desktop stage.",
+                }
+            ],
+            "optional": [],
+        },
+        "security": {
+            "signature": {
+                "algorithm": PACK_SIGNATURE_ALGORITHM,
+                "key_id": LOCAL_IMPORTER_KEY_ID,
+                "public_key": LOCAL_IMPORTER_PUBLIC_KEY,
+                "value": "",
+            },
+            "asset_hashes": {
+                asset_path: f"sha256:{_sha256_hex(asset_bytes)}"
+                for asset_path, asset_bytes in copied_assets.items()
+            },
+        },
+        "extensions": {
+            "source": "builder",
+            "character_profile": {
+                "summary": normalized_summary,
+                "scenario": normalized_scenario,
+                "opening_message": normalized_opening,
+                "style_notes": normalized_style_notes,
+                "tags": ["builder", "local-character"],
+            },
+            "builder": {
+                "source_pack_id": (
+                    source_manifest.id if source_manifest is not None else None
+                ),
+                "portrait_filename": portrait_filename,
+            },
+        },
+    }
+    signature_bytes = _rsa_sign_rs256(
+        _canonical_manifest_payload(manifest),
+        modulus=LOCAL_IMPORTER_RSA_MODULUS,
+        private_exponent=LOCAL_IMPORTER_RSA_PRIVATE_EXPONENT,
+    )
+    manifest["security"]["signature"]["value"] = (
+        base64.urlsafe_b64encode(signature_bytes).rstrip(b"=").decode("ascii")
+    )
+
+    with _pack_lock:
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            pack_root = Path(temp_dir_name)
+            for asset_path, asset_bytes in copied_assets.items():
+                asset_file = pack_root / asset_path
+                asset_file.parent.mkdir(parents=True, exist_ok=True)
+                asset_file.write_bytes(asset_bytes)
+            (pack_root / "pack.json").write_text(
+                json.dumps(manifest, indent=2),
+                encoding="utf-8",
+            )
+            summary_result = _install_from_directory(
+                pack_root,
+                source="builder",
+                archive_name=f"{normalized_pack_id}.json",
+            )
+            set_active_pack_id(normalized_pack_id)
+
+    return {
+        "pack": _summary_from_manifest(
+            _find_installed_manifest(normalized_pack_id)
+        ).model_dump(mode="json"),
+        "active_pack_id": normalized_pack_id,
     }

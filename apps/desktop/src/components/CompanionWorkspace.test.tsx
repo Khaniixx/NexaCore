@@ -1441,6 +1441,7 @@ afterEach(() => {
 
     render(<CompanionWorkspace />);
 
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Settings" }));
     expect(
       await screen.findByText(/missing my local model, qwen2.5-coder:7b-instruct/i),
     ).toBeInTheDocument();
@@ -1455,10 +1456,8 @@ afterEach(() => {
       await screen.findByText("Start small with Sunrise."),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Ask for a quick check-in, open something you use often, or let Sunrise keep a quiet note while you get settled.",
-      ),
-    ).toBeInTheDocument();
+      screen.getAllByText("Morning. I kept the thread warm for you.").length,
+    ).toBeGreaterThan(0);
     expect(screen.getByText("Ask a small question")).toBeInTheDocument();
     expect(screen.getByText("Set a timer or save a note")).toBeInTheDocument();
     expect(screen.getAllByText("Runtime ready").length).toBeGreaterThan(0);
@@ -1921,7 +1920,7 @@ afterEach(() => {
       screen.getByText("Recent conversation history was cleared on this device."),
     ).toBeInTheDocument();
     expect(window.localStorage.getItem("companion-os.session")).toContain(
-      "I'm here, awake locally, and ready to keep the desk steady with you.",
+      "Morning. I kept the thread warm for you.",
     );
 
     await user.click(screen.getByRole("button", { name: "Repair OpenClaw" }));
@@ -1985,7 +1984,7 @@ afterEach(() => {
     });
     expect(mockStartSpeechOutput).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        text: "I'm here, awake locally, and ready to keep the desk steady with you.",
+        text: "Morning. I kept the thread warm for you.",
         locale: "en-US",
         voiceHint: "sunrise",
       }),

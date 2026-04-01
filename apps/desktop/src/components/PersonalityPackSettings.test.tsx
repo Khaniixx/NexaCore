@@ -8,6 +8,7 @@ function createPackApiMock() {
   const listPacks = vi.fn();
   const installPack = vi.fn();
   const importVrmModel = vi.fn();
+  const createCharacterPack = vi.fn();
   const selectActivePack = vi.fn();
   const importTavernCard = vi.fn();
 
@@ -60,6 +61,10 @@ function createPackApiMock() {
         active: false,
         icon_data_url: null,
         installed_at: "2026-03-29T00:00:00+00:00",
+        model: {
+          renderer: "vrm",
+          asset_path: "models/evening.vrm",
+        },
         character_profile: {
           origin: "tavern-card",
           summary: "A dramatic late-night character with a softer voice underneath.",
@@ -95,6 +100,19 @@ function createPackApiMock() {
       },
     },
   });
+  createCharacterPack.mockResolvedValue({
+    active_pack_id: "momo",
+    pack: {
+      ...initialList.packs[0],
+      id: "momo",
+      display_name: "Momo",
+      character_profile: {
+        origin: "builder",
+        summary: "Sharp, expressive, and still grounded on the desk.",
+        opening_message: "You finally showed up. Sit down.",
+      },
+    },
+  });
   importTavernCard.mockResolvedValue({
     active_pack_id: "sunrise-companion",
     pack: initialList.packs[0],
@@ -104,6 +122,7 @@ function createPackApiMock() {
     listPacks,
     installPack,
     importVrmModel,
+    createCharacterPack,
     selectActivePack,
     importTavernCard,
   };
@@ -306,7 +325,7 @@ describe("PersonalityPackSettings", () => {
     );
 
     expect(await screen.findByText("Sunrise")).toBeInTheDocument();
-    expect(screen.getByText("Evening")).toBeInTheDocument();
+    expect(screen.getAllByText("Evening").length).toBeGreaterThan(0);
     expect(
       screen.getByText("A dramatic late-night character with a softer voice underneath."),
     ).toBeInTheDocument();
@@ -404,6 +423,46 @@ describe("PersonalityPackSettings", () => {
       expect(packApi.importVrmModel).toHaveBeenCalledWith(
         "Lapine.vrm",
         expect.any(String),
+      );
+    });
+  });
+
+  it("builds and installs a local character pack from the builder", async () => {
+    const packApi = createPackApiMock();
+    const marketplaceApi = createMarketplaceApiMock();
+    const user = userEvent.setup();
+
+    render(
+      <PersonalityPackSettings
+        packApi={packApi}
+        marketplaceApi={marketplaceApi}
+      />,
+    );
+
+    await screen.findByText("Sunrise");
+
+    await user.type(screen.getByLabelText("Character name"), "Momo");
+    await user.type(
+      screen.getByLabelText("Character summary"),
+      "Sharp, expressive, and still grounded on the desk.",
+    );
+    await user.type(
+      screen.getByLabelText("Opening line"),
+      "You finally showed up. Sit down.",
+    );
+    await user.selectOptions(screen.getByLabelText("Body source"), "evening-companion");
+    await user.selectOptions(screen.getByLabelText("Voice path"), "chatterbox");
+    await user.click(screen.getByRole("button", { name: "Build and use this companion" }));
+
+    await waitFor(() => {
+      expect(packApi.createCharacterPack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          display_name: "Momo",
+          summary: "Sharp, expressive, and still grounded on the desk.",
+          opening_message: "You finally showed up. Sit down.",
+          source_pack_id: "evening-companion",
+          voice_provider: "chatterbox",
+        }),
       );
     });
   });

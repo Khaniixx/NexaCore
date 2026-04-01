@@ -310,6 +310,49 @@ def test_import_vrm_model_installs_a_vrm_pack() -> None:
     ]
 
 
+def test_create_character_pack_builds_from_simple_inputs() -> None:
+    base_response = client.post(
+        "/api/packs/import-vrm-model",
+        json={
+            "filename": "Noir.vrm",
+            "model_base64": base64.b64encode(make_vrm_bytes()).decode("ascii"),
+        },
+    )
+    assert base_response.status_code == 200
+
+    portrait_bytes = base64.b64decode(PNG_1X1_BASE64)
+    response = client.post(
+        "/api/packs/create-character",
+        json={
+            "display_name": "Momo",
+            "summary": "Sharp, expressive, and still grounded on the desk.",
+            "opening_message": "You finally showed up. Sit down.",
+            "scenario": "Waiting on the desk for the next real problem.",
+            "style_notes": ["direct", "protective underneath"],
+            "source_pack_id": "noir",
+            "portrait_filename": "momo.png",
+            "portrait_image_base64": base64.b64encode(portrait_bytes).decode("ascii"),
+            "voice_provider": "chatterbox",
+            "voice_id": "momo-fast",
+            "voice_model_id": "chatterbox-turbo",
+            "voice_locale": "en-US",
+            "voice_style": "expressive",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["active_pack_id"] == "momo"
+    assert payload["pack"]["display_name"] == "Momo"
+    assert payload["pack"]["character_profile"]["origin"] == "builder"
+    assert (
+        payload["pack"]["character_profile"]["opening_message"]
+        == "You finally showed up. Sit down."
+    )
+    assert payload["pack"]["model"]["renderer"] == "vrm"
+    assert payload["pack"]["voice"]["provider"] == "chatterbox"
+
+
 def test_install_pack_rejects_unsupported_capability() -> None:
     archive_bytes = make_pack_archive(
         required_capabilities=[
