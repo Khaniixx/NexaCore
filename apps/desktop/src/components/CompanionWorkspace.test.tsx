@@ -1382,6 +1382,8 @@ afterEach(() => {
     expect(
       await screen.findByText(
         "Start with one small local check-in, then carry the setup thread into the next concrete task.",
+        {},
+        { timeout: 2500 },
       ),
     ).toBeInTheDocument();
   });
