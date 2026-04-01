@@ -11,10 +11,17 @@ export type SpeechOutputOptions = {
   voiceHint?: string | null;
   onStatusChange: (status: SpeechOutputStatus) => void;
   onError: (message: string) => void;
+  onProgress?: (progress: SpeechOutputProgress) => void;
 };
 
 export type SpeechOutputSession = {
   stop: () => void;
+};
+
+export type SpeechOutputProgress = {
+  charIndex: number;
+  progress: number;
+  textLength: number;
 };
 
 type BrowserSpeechWindow = Window &
@@ -67,6 +74,19 @@ function formatSpeechError(error?: string): string {
   return "Speech playback stopped before the browser could finish speaking.";
 }
 
+function toSpeechProgress(
+  text: string,
+  charIndex: number,
+): SpeechOutputProgress {
+  const textLength = Math.max(text.length, 1);
+  const boundedCharIndex = Math.max(0, Math.min(charIndex, textLength));
+  return {
+    charIndex: boundedCharIndex,
+    progress: boundedCharIndex / textLength,
+    textLength,
+  };
+}
+
 export function getSpeechOutputSupport(
   sourceWindow: BrowserSpeechWindow = window as BrowserSpeechWindow,
 ): SpeechOutputSupport {
@@ -115,11 +135,20 @@ export function startSpeechOutput(
   utterance.onstart = () => {
     if (!stopped) {
       options.onStatusChange("speaking");
+      options.onProgress?.(toSpeechProgress(options.text, 0));
     }
   };
   utterance.onend = () => {
     if (!stopped) {
+      options.onProgress?.(toSpeechProgress(options.text, options.text.length));
       options.onStatusChange("idle");
+    }
+  };
+  utterance.onboundary = (event) => {
+    if (!stopped) {
+      options.onProgress?.(
+        toSpeechProgress(options.text, event.charIndex ?? 0),
+      );
     }
   };
   utterance.onerror = (event) => {

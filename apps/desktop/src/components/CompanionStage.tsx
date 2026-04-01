@@ -6,6 +6,7 @@ import type {
   PackModelConfig,
   PackVoiceConfig,
 } from "../packApi";
+import type { SpeechOutputStatus } from "../speechOutput";
 import { CompanionAvatar } from "./CompanionAvatar";
 
 type CompanionStageProps = {
@@ -25,6 +26,9 @@ type CompanionStageProps = {
     | "workspace";
   presencePinned?: boolean;
   presenceTargetTitle?: string | null;
+  speechPlaybackStatus?: SpeechOutputStatus;
+  speechPlaybackProgress?: number;
+  speechPlaybackTextLength?: number;
 };
 
 function getAttachmentMode(
@@ -136,6 +140,27 @@ function getStageBadge(modelConfig?: PackModelConfig): string {
   return modelConfig?.asset_path ? "Live2D loaded" : "Live2D-ready";
 }
 
+function getSpeechPlaybackIntensity(
+  state: CompanionState,
+  speechPlaybackStatus: SpeechOutputStatus | undefined,
+  speechPlaybackProgress: number | undefined,
+  speechPlaybackTextLength: number | undefined,
+): number {
+  if (
+    state !== "talking" ||
+    (speechPlaybackStatus !== "speaking" && speechPlaybackStatus !== "starting")
+  ) {
+    return 0;
+  }
+
+  const boundedProgress = Math.max(0, Math.min(speechPlaybackProgress ?? 0, 1));
+  const textLength = Math.max(speechPlaybackTextLength ?? 0, 1);
+  const cadenceOffset = (textLength % 7) / 7;
+  const wave = Math.abs(Math.sin((boundedProgress + cadenceOffset) * Math.PI * 4));
+  const baseIntensity = speechPlaybackStatus === "starting" ? 0.38 : 0.56;
+  return Number(Math.min(1, baseIntensity + wave * 0.36).toFixed(2));
+}
+
 function renderLive2DStage({
   state,
   displayName = "Aster",
@@ -145,6 +170,9 @@ function renderLive2DStage({
   presenceAnchor = "workspace",
   presencePinned = false,
   presenceTargetTitle,
+  speechPlaybackStatus = "idle",
+  speechPlaybackProgress = 0,
+  speechPlaybackTextLength = 0,
 }: CompanionStageProps) {
   const attachmentMode = getAttachmentMode(presencePinned, presenceAnchor);
   const attachmentLabel = getAttachmentLabel(
@@ -159,14 +187,25 @@ function renderLive2DStage({
   const idleEyeHook = getIdleEyeHook(state, modelConfig);
   const stageLabel = avatarConfig?.stage_label ?? "Live2D stage";
   const badgeLabel = getStageBadge(modelConfig);
+  const speechPlaybackIntensity = getSpeechPlaybackIntensity(
+    state,
+    speechPlaybackStatus,
+    speechPlaybackProgress,
+    speechPlaybackTextLength,
+  );
+  const speechPlaybackActive =
+    speechPlaybackStatus === "speaking" || speechPlaybackStatus === "starting";
   const live2dStyle = {
     "--avatar-accent": avatarConfig?.accent_color ?? "#9db9ff",
     "--avatar-aura": avatarConfig?.aura_color ?? "#87ead8",
+    "--live2d-mouth-open": `${14 + Math.round(speechPlaybackIntensity * 14)}px`,
+    "--live2d-mouth-width": `${44 + Math.round(speechPlaybackIntensity * 12)}px`,
+    "--live2d-eye-shift": `${Math.round(speechPlaybackIntensity * 6)}px`,
   } as CSSProperties;
 
   return (
     <div
-      className={`live2d-stage live2d-stage--${state} live2d-stage--${attachmentMode}`}
+      className={`live2d-stage live2d-stage--${state} live2d-stage--${attachmentMode}${speechPlaybackActive ? " live2d-stage--speech-active" : ""}`}
       aria-live="polite"
       aria-label={`${displayName} avatar is ${state}`}
       data-stage-renderer="live2d"
@@ -178,6 +217,9 @@ function renderLive2DStage({
       data-blink-hook={blinkHook}
       data-look-at-hook={lookAtHook}
       data-idle-eye-hook={idleEyeHook}
+      data-speech-playback-status={speechPlaybackStatus}
+      data-speech-playback-progress={speechPlaybackProgress.toFixed(2)}
+      data-speech-intensity={speechPlaybackIntensity.toFixed(2)}
       style={live2dStyle}
     >
       <div className="avatar-plaque" aria-hidden="true">
@@ -223,10 +265,15 @@ function renderLive2DStage({
         <span>{blinkHook}</span>
         <span>{lookAtHook}</span>
         <span>{idleEyeHook}</span>
+        <span>
+          {speechPlaybackActive
+            ? `speech-follow ${speechPlaybackIntensity.toFixed(2)}`
+            : "speech-idle"}
+        </span>
       </div>
       <span className="avatar-screen-reader">
         {displayName} is on the Live2D stage with the {live2dHook} hook active.
-        {` ${blinkHook}. ${lookAtHook}. ${idleEyeHook}. ${attachmentLabel}. ${presenceCue}.`}
+        {` ${blinkHook}. ${lookAtHook}. ${idleEyeHook}. Speech intensity ${speechPlaybackIntensity.toFixed(2)}. ${attachmentLabel}. ${presenceCue}.`}
       </span>
     </div>
   );

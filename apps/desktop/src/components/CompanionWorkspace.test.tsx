@@ -12,12 +12,22 @@ const mockGetSpeechOutputSupport = vi.fn(() => ({
   voices: true,
 }));
 const mockSpeechOutputStop = vi.fn();
-const mockStartSpeechOutput = vi.fn(({ onStatusChange }) => {
+const mockStartSpeechOutput = vi.fn(({ onStatusChange, onProgress, text }) => {
   onStatusChange("starting");
   onStatusChange("speaking");
+  onProgress?.({
+    charIndex: Math.max(1, Math.floor((text?.length ?? 1) / 2)),
+    progress: 0.5,
+    textLength: text?.length ?? 0,
+  });
   return {
     stop: vi.fn(() => {
       mockSpeechOutputStop();
+      onProgress?.({
+        charIndex: 0,
+        progress: 0,
+        textLength: 0,
+      });
       onStatusChange("idle");
     }),
   };
@@ -1613,6 +1623,10 @@ afterEach(() => {
         );
       },
       { timeout: 3000 },
+    );
+    expect(screen.getByLabelText("Sunrise avatar is talking")).toHaveAttribute(
+      "data-speech-playback-status",
+      "speaking",
     );
   });
 
