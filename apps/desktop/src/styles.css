@@ -1572,6 +1572,12 @@ textarea {
     0 20px 44px rgba(0, 0, 0, 0.22);
 }
 
+.live2d-stage__portrait--vrm {
+  background:
+    radial-gradient(circle at 50% 22%, rgba(157, 185, 255, 0.22), transparent 38%),
+    linear-gradient(180deg, rgba(12, 25, 43, 0.98), rgba(6, 12, 21, 0.94));
+}
+
 .live2d-stage__focus {
   inset: auto 50% 16%;
   width: 168px;
@@ -1583,6 +1589,41 @@ textarea {
   filter: blur(calc(14px + (var(--live2d-listen-intensity, 0) * 8px)));
   opacity: calc(0.72 + (var(--live2d-listen-intensity, 0) * 0.28));
   transition: filter 160ms ease, opacity 160ms ease, background 160ms ease;
+}
+
+.live2d-stage__pixi {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.live2d-stage__pixi canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.live2d-stage__pixi-fallback-image,
+.live2d-stage__pixi-fallback-letter {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+.live2d-stage__pixi-fallback-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  filter: saturate(1.06) contrast(1.03);
+}
+
+.live2d-stage__pixi-fallback-letter {
+  font-family: "Bahnschrift", "Segoe UI Variable Display", sans-serif;
+  font-size: 6rem;
+  color: rgba(241, 247, 255, 0.92);
 }
 
 .live2d-stage__image {
@@ -1597,6 +1638,16 @@ textarea {
   font-family: "Bahnschrift", "Segoe UI Variable Display", sans-serif;
   font-size: 6rem;
   color: rgba(241, 247, 255, 0.92);
+}
+
+.live2d-stage__vrm-ring {
+  position: absolute;
+  inset: 1.4rem;
+  border-radius: 50%;
+  border: 1px solid rgba(129, 240, 214, 0.28);
+  box-shadow:
+    0 0 0 10px rgba(129, 240, 214, 0.06),
+    inset 0 0 42px rgba(129, 240, 214, 0.12);
 }
 
 .live2d-stage__face-overlay {

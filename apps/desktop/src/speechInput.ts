@@ -1,7 +1,10 @@
+import { MicVAD } from "@ricky0123/vad-web";
+
 export type SpeechInputSupport = {
   microphone: boolean;
   transcription: boolean;
   vad: boolean;
+  vad_engine: "silero-vad" | "browser-analyser" | "none";
 };
 
 export type SpeechInputSessionStatus =
@@ -68,6 +71,19 @@ type BrowserSpeechWindow = Window &
     webkitAudioContext?: typeof AudioContext;
   };
 
+type ActivityTracker = {
+  stop: () => Promise<void> | void;
+};
+
+function getBaseAssetPath(relativePath: string): string {
+  const baseUrl = import.meta.env.BASE_URL ?? "/";
+  const normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+  return `${normalizedBaseUrl}${relativePath}`;
+}
+
+const VAD_ASSET_BASE_PATH = getBaseAssetPath("runtime/vad/");
+const ONNX_WASM_BASE_PATH = getBaseAssetPath("runtime/onnx/");
+
 function getSpeechRecognitionConstructor(
   sourceWindow: BrowserSpeechWindow,
 ): SpeechRecognitionConstructor | null {
@@ -78,6 +94,12 @@ function getSpeechRecognitionConstructor(
     return sourceWindow.webkitSpeechRecognition;
   }
   return null;
+}
+
+function getAudioContextConstructor(
+  sourceWindow: BrowserSpeechWindow,
+): typeof AudioContext | null {
+  return sourceWindow.AudioContext ?? sourceWindow.webkitAudioContext ?? null;
 }
 
 function formatRecognitionError(errorCode?: string): string {
@@ -93,22 +115,175 @@ function formatRecognitionError(errorCode?: string): string {
   return "Speech input stopped before the browser could finish listening.";
 }
 
+function formatVadError(error: unknown): string {
+  if (error instanceof Error) {
+    return `Voice activity detection could not start locally: ${error.message}`;
+  }
+  return "Voice activity detection could not start locally.";
+}
+
+function clampActivityLevel(value: number): number {
+  return Number(Math.max(0, Math.min(value, 1)).toFixed(2));
+}
+
+async function startAnalyserTracking(
+  sourceWindow: BrowserSpeechWindow,
+  onActivity: ((activity: SpeechInputActivity) => void) | undefined,
+): Promise<ActivityTracker> {
+  const AudioContextConstructor = getAudioContextConstructor(sourceWindow);
+  if (
+    typeof sourceWindow.navigator?.mediaDevices?.getUserMedia !== "function" ||
+    AudioContextConstructor === null
+  ) {
+    return {
+      stop: () => {
+        onActivity?.({
+          level: 0,
+          hearing: false,
+        });
+      },
+    };
+  }
+
+  const mediaStream = await sourceWindow.navigator.mediaDevices.getUserMedia({
+    audio: true,
+  });
+  const audioContext = new AudioContextConstructor();
+  const analyserNode = audioContext.createAnalyser();
+  analyserNode.fftSize = 1024;
+  analyserNode.smoothingTimeConstant = 0.72;
+
+  const mediaSource = audioContext.createMediaStreamSource(mediaStream);
+  mediaSource.connect(analyserNode);
+
+  const sampleBuffer = new Uint8Array(analyserNode.fftSize);
+  const activityTimer = sourceWindow.setInterval(() => {
+    analyserNode.getByteTimeDomainData(sampleBuffer);
+    let sumSquares = 0;
+    for (const sample of sampleBuffer) {
+      const normalized = (sample - 128) / 128;
+      sumSquares += normalized * normalized;
+    }
+    const rms = Math.sqrt(sumSquares / sampleBuffer.length);
+    const level = clampActivityLevel(rms * 8);
+    onActivity?.({
+      level,
+      hearing: level >= 0.08,
+    });
+  }, 120);
+
+  return {
+    stop: async () => {
+      sourceWindow.clearInterval(activityTimer);
+      mediaSource.disconnect();
+      analyserNode.disconnect();
+      mediaStream.getTracks().forEach((track) => {
+        track.stop();
+      });
+      await audioContext.close().catch(() => undefined);
+      onActivity?.({
+        level: 0,
+        hearing: false,
+      });
+    },
+  };
+}
+
+async function startVadTracking(
+  sourceWindow: BrowserSpeechWindow,
+  options: SpeechInputSessionOptions,
+): Promise<ActivityTracker> {
+  let stopped = false;
+  const vad = await MicVAD.new({
+    model: "v5",
+    startOnLoad: false,
+    processorType: "ScriptProcessor",
+    baseAssetPath: VAD_ASSET_BASE_PATH,
+    onnxWASMBasePath: ONNX_WASM_BASE_PATH,
+    onFrameProcessed: (probabilities) => {
+      if (stopped) {
+        return;
+      }
+
+      const level = clampActivityLevel(probabilities.isSpeech);
+      options.onActivity?.({
+        level,
+        hearing: probabilities.isSpeech >= 0.55,
+      });
+    },
+    onSpeechStart: () => {
+      if (stopped) {
+        return;
+      }
+      options.onStatusChange("hearing");
+      options.onActivity?.({
+        level: 0.72,
+        hearing: true,
+      });
+    },
+    onSpeechRealStart: () => {
+      if (stopped) {
+        return;
+      }
+      options.onStatusChange("hearing");
+      options.onActivity?.({
+        level: 0.86,
+        hearing: true,
+      });
+    },
+    onSpeechEnd: () => {
+      if (stopped) {
+        return;
+      }
+      options.onStatusChange("listening");
+      options.onActivity?.({
+        level: 0.08,
+        hearing: false,
+      });
+    },
+    onVADMisfire: () => {
+      if (stopped) {
+        return;
+      }
+      options.onStatusChange("listening");
+      options.onActivity?.({
+        level: 0.04,
+        hearing: false,
+      });
+    },
+  });
+
+  await vad.start();
+  options.onStatusChange("listening");
+
+  return {
+    stop: async () => {
+      if (stopped) {
+        return;
+      }
+      stopped = true;
+      await vad.destroy().catch(() => undefined);
+      options.onActivity?.({
+        level: 0,
+        hearing: false,
+      });
+    },
+  };
+}
+
 export function getSpeechInputSupport(
   sourceWindow: BrowserSpeechWindow = window as BrowserSpeechWindow,
 ): SpeechInputSupport {
   const microphone =
     typeof sourceWindow.navigator?.mediaDevices?.getUserMedia === "function";
   const transcription = getSpeechRecognitionConstructor(sourceWindow) !== null;
-  const vad =
-    microphone &&
-    (typeof sourceWindow.AudioContext === "function" ||
-      typeof (sourceWindow as { webkitAudioContext?: unknown }).webkitAudioContext ===
-        "function");
+  const vad = microphone && getAudioContextConstructor(sourceWindow) !== null;
 
   return {
     microphone,
     transcription,
     vad,
+    vad_engine: vad ? "silero-vad" : microphone ? "browser-analyser" : "none",
   };
 }
 
@@ -123,81 +298,48 @@ export async function startSpeechInputSession(
   }
 
   options.onStatusChange("starting");
-  const mediaStream = await sourceWindow.navigator.mediaDevices.getUserMedia({
-    audio: true,
-  });
-  const AudioContextConstructor =
-    sourceWindow.AudioContext ?? sourceWindow.webkitAudioContext;
+
   const RecognitionConstructor = getSpeechRecognitionConstructor(sourceWindow);
-  let recognition: SpeechRecognitionInstance | null = null;
+  const transcriptionEnabled =
+    RecognitionConstructor !== null && options.transcriptionEnabled !== false;
+
   let stopped = false;
-  let audioContext: AudioContext | null = null;
-  let analyserNode: AnalyserNode | null = null;
-  let mediaSource: MediaStreamAudioSourceNode | null = null;
-  let activityTimer: number | null = null;
+  let recognition: SpeechRecognitionInstance | null = null;
+  let activityTracker: ActivityTracker | null = null;
 
-  const stopActivityTracking = () => {
-    if (activityTimer !== null) {
-      sourceWindow.clearInterval(activityTimer);
-      activityTimer = null;
+  const stopActivityTracking = async () => {
+    const activeTracker = activityTracker;
+    activityTracker = null;
+    await activeTracker?.stop();
+  };
+
+  if (support.vad) {
+    try {
+      activityTracker = await startVadTracking(sourceWindow, options);
+    } catch (error) {
+      activityTracker = await startAnalyserTracking(
+        sourceWindow,
+        options.onActivity,
+      );
+      options.onError(formatVadError(error));
+      options.onStatusChange("listening");
     }
-    mediaSource?.disconnect();
-    analyserNode?.disconnect();
-    mediaSource = null;
-    analyserNode = null;
-    void audioContext?.close();
-    audioContext = null;
-    options.onActivity?.({
-      level: 0,
-      hearing: false,
-    });
-  };
-
-  const stopTracks = () => {
-    mediaStream.getTracks().forEach((track) => {
-      track.stop();
-    });
-  };
-
-  if (typeof AudioContextConstructor === "function") {
-    audioContext = new AudioContextConstructor();
-    analyserNode = audioContext.createAnalyser();
-    analyserNode.fftSize = 1024;
-    analyserNode.smoothingTimeConstant = 0.72;
-    mediaSource = audioContext.createMediaStreamSource(mediaStream);
-    mediaSource.connect(analyserNode);
-
-    const sampleBuffer = new Uint8Array(analyserNode.fftSize);
-    activityTimer = sourceWindow.setInterval(() => {
-      if (stopped || analyserNode === null) {
-        return;
-      }
-
-      analyserNode.getByteTimeDomainData(sampleBuffer);
-      let sumSquares = 0;
-      for (const sample of sampleBuffer) {
-        const normalized = (sample - 128) / 128;
-        sumSquares += normalized * normalized;
-      }
-      const rms = Math.sqrt(sumSquares / sampleBuffer.length);
-      const level = Number(Math.min(1, rms * 8).toFixed(2));
-      options.onActivity?.({
-        level,
-        hearing: level >= 0.08,
-      });
-    }, 120);
+  } else {
+    activityTracker = await startAnalyserTracking(
+      sourceWindow,
+      options.onActivity,
+    );
+    options.onStatusChange("listening");
   }
 
-  if (RecognitionConstructor === null || options.transcriptionEnabled === false) {
-    options.onStatusChange("listening");
+  if (!transcriptionEnabled) {
     return {
       stop: () => {
         if (stopped) {
           return;
         }
         stopped = true;
-        stopActivityTracking();
-        stopTracks();
+        void stopActivityTracking();
         options.onStatusChange("idle");
       },
     };
@@ -272,8 +414,7 @@ export async function startSpeechInputSession(
       }
       stopped = true;
       recognition?.stop();
-      stopActivityTracking();
-      stopTracks();
+      void stopActivityTracking();
       options.onStatusChange("idle");
     },
   };

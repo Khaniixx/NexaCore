@@ -8,6 +8,7 @@
     "build": "tsc && vite build",
     "build:runtime": "node ./scripts/build-runtime.mjs",
     "build:release": "npm run build && npm run build:runtime",
+    "sync:embodiment-assets": "node ./scripts/sync-embodiment-assets.mjs",
     "lint": "eslint . --ext .ts,.tsx",
     "preview": "vite preview",
     "preview:installer": "vite --host 127.0.0.1 --port 1421 --open /installer-preview.html",
@@ -16,16 +17,21 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@pixiv/three-vrm": "^3.5.1",
+    "@ricky0123/vad-web": "^0.0.30",
     "@tauri-apps/api": "^2.8.0",
+    "onnxruntime-web": "^1.24.3",
+    "pixi.js-legacy": "^6.5.10",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "three": "^0.180.0",
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
     "@testing-library/jest-dom": "^6.8.0",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
-    "@tauri-apps/cli": "^2.0.0",
     "@types/node": "^24.6.0",
     "@types/react": "^18.0.37",
     "@types/react-dom": "^18.0.11",

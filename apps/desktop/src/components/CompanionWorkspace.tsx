@@ -27,6 +27,7 @@ import {
   packApi,
   type InstalledPack,
 } from "../packApi";
+import { getRendererRuntimeSupport } from "../rendererRuntime";
 import {
   speechInputApi,
   type SpeechInputSettings,
@@ -255,6 +256,11 @@ function getSpeechInputSupportLabel(
   if (!speechInputStatus?.enabled) {
     return "Turn speech input on before starting a mic check.";
   }
+  if (support.vad && support.vad_engine === "silero-vad") {
+    return support.transcription
+      ? "Local Silero VAD drives listening motion, and browser transcription can still drop words into the composer."
+      : "Local Silero VAD is carrying listening detection even without browser transcription.";
+  }
   if (support.transcription) {
     return "Browser speech recognition is available, so spoken words can drop into the composer.";
   }
@@ -320,6 +326,8 @@ function getModelManifestSummary(activePack: InstalledPack | null): string {
     return "Renderer: shell / hooks: built-in";
   }
 
+  const runtimeSupport = getRendererRuntimeSupport();
+
   const renderer = modelConfig.renderer ?? "shell";
   const hooks = [
     modelConfig.idle_hook,
@@ -327,10 +335,16 @@ function getModelManifestSummary(activePack: InstalledPack | null): string {
     modelConfig.perched_hook,
     modelConfig.speaking_hook,
   ].filter((value): value is string => Boolean(value));
+  const runtime =
+    renderer === "live2d"
+      ? runtimeSupport.live2d.runtime
+      : renderer === "vrm"
+        ? runtimeSupport.vrm.runtime
+        : "shell";
 
   return hooks.length > 0
-    ? `Renderer: ${renderer} / hooks: ${hooks.join(", ")}`
-    : `Renderer: ${renderer}`;
+    ? `Renderer: ${renderer} / runtime: ${runtime} / hooks: ${hooks.join(", ")}`
+    : `Renderer: ${renderer} / runtime: ${runtime}`;
 }
 
 function getPresenceAttachmentLabel(
@@ -1354,6 +1368,16 @@ export function CompanionWorkspace() {
     });
   }
 
+  function stopSpeechInputSession(): void {
+    speechInputSessionRef.current?.stop();
+    speechInputSessionRef.current = null;
+    setSpeechInputBrowserState("idle");
+    setSpeechInputActivity({
+      level: 0,
+      hearing: false,
+    });
+  }
+
   async function handleToggleVoiceAutoplay(enabled: boolean): Promise<void> {
     setIsSavingVoice(true);
     try {
@@ -1393,6 +1417,7 @@ export function CompanionWorkspace() {
     }
 
     stopSpeechOutputPlayback();
+    stopSpeechInputSession();
     setSpeechOutputProgress({
       charIndex: 0,
       progress: 0,
@@ -1461,13 +1486,7 @@ export function CompanionWorkspace() {
       setIsSavingSpeechInput(true);
       const nextSpeechInputStatus = await persistSpeechInputSettings({ enabled });
       if (!enabled) {
-        speechInputSessionRef.current?.stop();
-        speechInputSessionRef.current = null;
-        setSpeechInputBrowserState("idle");
-        setSpeechInputActivity({
-          level: 0,
-          hearing: false,
-        });
+        stopSpeechInputSession();
         setSpeechInputDraft(null);
       }
       setSettingsNotice(
@@ -1509,13 +1528,7 @@ export function CompanionWorkspace() {
 
   async function handleSpeechInputSessionToggle(): Promise<void> {
     if (speechInputSessionRef.current !== null) {
-      speechInputSessionRef.current.stop();
-      speechInputSessionRef.current = null;
-      setSpeechInputBrowserState("idle");
-      setSpeechInputActivity({
-        level: 0,
-        hearing: false,
-      });
+      stopSpeechInputSession();
       setSettingsNotice("Speech input stopped listening.");
       return;
     }
@@ -1526,6 +1539,10 @@ export function CompanionWorkspace() {
     }
 
     try {
+      if (speechOutputSessionRef.current !== null) {
+        stopSpeechOutputPlayback();
+        setSettingsNotice("Aster stopped speaking so the desk could listen.");
+      }
       setSpeechInputDraft(null);
       setSpeechInputActivity({
         level: 0,
@@ -1536,6 +1553,12 @@ export function CompanionWorkspace() {
         transcriptionEnabled: speechInputStatus?.transcription_enabled,
         onStatusChange: (status) => {
           setSpeechInputBrowserState(status);
+          if (
+            status === "hearing" &&
+            (speechOutputStatus === "speaking" || speechOutputStatus === "starting")
+          ) {
+            stopSpeechOutputPlayback();
+          }
           if (status === "idle" || status === "unsupported" || status === "error") {
             setSpeechInputActivity({
               level: 0,

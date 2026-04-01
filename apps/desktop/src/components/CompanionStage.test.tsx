@@ -36,6 +36,7 @@ describe("CompanionStage", () => {
 
     const stage = screen.getByLabelText("Sunrise avatar is idle");
     expect(stage).toHaveAttribute("data-stage-renderer", "live2d");
+    expect(stage).toHaveAttribute("data-stage-runtime", "pixi");
     expect(stage).toHaveAttribute("data-pack-id", "sunrise-companion");
     expect(stage).toHaveAttribute("data-model-asset", "models/sunrise.model3.json");
     expect(stage).toHaveAttribute(
@@ -46,17 +47,22 @@ describe("CompanionStage", () => {
     expect(stage).toHaveAttribute("data-blink-hook", "blink-soft");
     expect(stage).toHaveAttribute("data-look-at-hook", "look-at-cursor");
     expect(stage).toHaveAttribute("data-idle-eye-hook", "idle-glance");
-    expect(screen.getByText("Live2D loaded")).toBeInTheDocument();
+    expect(screen.getByText("Pixi Live2D ready")).toBeInTheDocument();
     expect(screen.getByText("idle-loop")).toBeInTheDocument();
     expect(screen.getByText("blink-soft")).toBeInTheDocument();
     expect(screen.getByText("look-at-cursor")).toBeInTheDocument();
     expect(screen.getByText("idle-glance")).toBeInTheDocument();
-    const previewImage = document.querySelector<HTMLImageElement>(".live2d-stage__image");
+    const previewImage = document.querySelector<HTMLImageElement>(
+      ".live2d-stage__pixi-fallback-image",
+    );
     expect(previewImage).not.toBeNull();
     expect(previewImage).toHaveAttribute(
       "src",
       "http://127.0.0.1:8000/api/packs/sunrise-companion/preview-image",
     );
+    expect(
+      screen.getByLabelText("Sunrise Pixi preview"),
+    ).toHaveAttribute("data-live2d-runtime-engine", "pixi");
   });
 
   it("falls back to the shell avatar when the Live2D asset is missing", () => {
@@ -156,5 +162,32 @@ describe("CompanionStage", () => {
     expect(stage).toHaveAttribute("data-speech-input-level", "0.44");
     expect(stage).toHaveAttribute("data-listening-intensity", "0.44");
     expect(screen.getByText("listen-follow 0.44")).toBeInTheDocument();
+  });
+
+  it("uses the VRM adapter when the pack manifest provides a VRM asset", () => {
+    render(
+      <CompanionStage
+        state="idle"
+        displayName="Sunrise"
+        packId="sunrise-companion"
+        previewImageUrl="http://127.0.0.1:8000/api/packs/sunrise-companion/preview-image"
+        modelConfig={{
+          renderer: "vrm",
+          asset_path: "models/sunrise.vrm",
+          idle_hook: "idle-vrm",
+          speaking_hook: "talk-vrm",
+        }}
+        avatarConfig={{
+          stage_label: "VRM stage",
+        }}
+      />,
+    );
+
+    const stage = screen.getByLabelText("Sunrise avatar is idle");
+    expect(stage).toHaveAttribute("data-stage-renderer", "vrm");
+    expect(stage).toHaveAttribute("data-stage-runtime", "three-vrm");
+    expect(stage).toHaveAttribute("data-vrm-expression", "idle-vrm");
+    expect(screen.getByText("three-vrm ready")).toBeInTheDocument();
+    expect(screen.getByText("three-vrm runtime")).toBeInTheDocument();
   });
 });
