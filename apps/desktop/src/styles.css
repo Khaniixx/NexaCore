@@ -2720,6 +2720,59 @@ textarea {
   gap: 10px;
 }
 
+.daily-routines-desk {
+  display: grid;
+  gap: 14px;
+  padding: 18px 20px;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at bottom right, rgba(120, 236, 214, 0.1), transparent 38%),
+    linear-gradient(180deg, rgba(14, 30, 50, 0.9), rgba(10, 21, 37, 0.84)),
+    rgba(11, 24, 41, 0.88);
+  border: 1px solid rgba(153, 182, 220, 0.12);
+}
+
+.daily-routines-desk__copy {
+  display: grid;
+  gap: 6px;
+}
+
+.daily-routines-desk__copy h4,
+.daily-routines-desk__copy p {
+  margin: 0;
+}
+
+.daily-routines-desk__copy h4 {
+  font-family: "Bahnschrift", "Segoe UI Variable Display", sans-serif;
+  font-size: 1.04rem;
+}
+
+.daily-routines-desk__copy p {
+  color: rgba(225, 236, 250, 0.76);
+  line-height: 1.55;
+}
+
+.daily-routines-desk__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.daily-routines-desk__meta span {
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(18, 54, 57, 0.44);
+  border: 1px solid rgba(120, 236, 214, 0.1);
+  color: #dffaf4;
+  font-size: 0.82rem;
+}
+
+.daily-routines-desk__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .follow-up-desk {
   display: grid;
   gap: 14px;
@@ -3213,6 +3266,7 @@ textarea {
   .utility-panel__grid,
   .follow-up-desk__actions,
   .continuity-desk__actions,
+  .daily-routines-desk__actions,
   .welcome-desk__list,
   .quick-actions,
   .stage-panel__rail {

@@ -193,6 +193,14 @@ function buildContinuityNextStepPrompt(summary: MemorySummary): string {
   return `Based on "${summary.title}", what are the next one or two useful steps for me right now? Keep this context in mind: ${summary.summary}`;
 }
 
+function buildStartDayPrompt(companionTitle: string): string {
+  return `Help me start today with ${companionTitle}. Give me a calm check-in, point me at one useful next step, and keep the desk steady.`;
+}
+
+function buildWrapUpPrompt(companionTitle: string): string {
+  return `Help me wrap up today with ${companionTitle}. Summarize what matters, what should carry forward, and the next thread to pick up tomorrow.`;
+}
+
 function getContinuityFreshnessLabel(summary: MemorySummary | null): string | null {
   if (summary === null) {
     return null;
@@ -209,6 +217,16 @@ function getContinuityFreshnessLabel(summary: MemorySummary | null): string | nu
     hour: "numeric",
     minute: "2-digit",
   }).format(updatedAt)}`;
+}
+
+function getActiveTodoCount(state: MicroUtilityState | null): number {
+  return state?.todos.filter((todo) => !todo.completed).length ?? 0;
+}
+
+function getActiveTimerCount(state: MicroUtilityState | null): number {
+  return (
+    state?.timers.filter((timer) => !timer.completed && !timer.dismissed).length ?? 0
+  );
 }
 
 function getSpeechOutputReadinessLabel(
@@ -2149,6 +2167,8 @@ export function CompanionWorkspace() {
     latestMemorySummary?.summary ??
     `${companionTitle} will keep the thread steady here as your local summaries build up.`;
   const continuityFreshnessLabel = getContinuityFreshnessLabel(latestMemorySummary);
+  const activeTodoCount = getActiveTodoCount(microUtilityState);
+  const activeTimerCount = getActiveTimerCount(microUtilityState);
 
   return (
     <main
@@ -2737,6 +2757,69 @@ export function CompanionWorkspace() {
               </div>
             </article>
           ) : null}
+
+          <article className="daily-routines-desk" aria-label="Today with Aster">
+            <div className="daily-routines-desk__copy">
+              <span className="eyebrow">Today with {companionTitle}</span>
+              <h4>Keep the next part of the day small and steady.</h4>
+              <p>
+                {latestMemorySummary
+                  ? `${companionTitle} can resume your last thread, hold onto local notes, and help you move the desk forward without losing the tone.`
+                  : `${companionTitle} can help you begin the day calmly, keep notes nearby, and carry the next thread without overcomplicating it.`}
+              </p>
+            </div>
+            <div className="daily-routines-desk__meta">
+              <span>{activeTodoCount} open notes</span>
+              <span>{activeTimerCount} active timers</span>
+              <span>{memorySummaryState.pending_message_count} messages still settling</span>
+            </div>
+            <div className="daily-routines-desk__actions">
+              <button
+                className="quick-action-button quick-action-button--primary"
+                disabled={isSending}
+                type="button"
+                onClick={() => {
+                  void submitMessage(buildStartDayPrompt(companionTitle));
+                }}
+              >
+                Start the day
+              </button>
+              <button
+                className="quick-action-button"
+                disabled={isSending}
+                type="button"
+                onClick={() => {
+                  if (latestMemorySummary) {
+                    void submitMessage(buildContinuityNextStepPrompt(latestMemorySummary));
+                    return;
+                  }
+                  void submitMessage("How should we move forward from here?");
+                }}
+              >
+                Focus the next step
+              </button>
+              <button
+                className="quick-action-button"
+                disabled={isSending}
+                type="button"
+                onClick={() => {
+                  void submitMessage("show my todo list");
+                }}
+              >
+                Review my notes
+              </button>
+              <button
+                className="quick-action-button"
+                disabled={isSending}
+                type="button"
+                onClick={() => {
+                  void submitMessage(buildWrapUpPrompt(companionTitle));
+                }}
+              >
+                Wrap up today
+              </button>
+            </div>
+          </article>
 
           <div className="message-list" role="log" aria-live="polite">
             {messages.map((message) => (
