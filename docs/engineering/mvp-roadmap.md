@@ -239,8 +239,8 @@ Acceptance criteria:
 - persistence survives restarts
 - permissions remain explicit and understandable
 - voice output has a real provider contract instead of only browser speech,
-  with clear staging for `piper`, `style-bert-vits2`, and optional `rvc`
-  chaining
+  with clear staging for `piper`, `chatterbox`, `style-bert-vits2`, and
+  optional `rvc` chaining
 - browser playback remains a clear fallback while richer local character-voice
   engines are still being connected
 

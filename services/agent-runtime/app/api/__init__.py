@@ -918,7 +918,11 @@ def _voice_settings_payload() -> VoiceSettingsResponse:
     output_mode = str(settings.get("output_mode", "browser")).strip() or "browser"
     persisted_rvc_enabled = bool(settings.get("rvc_enabled", False))
     rvc_enabled = pack_rvc_enabled and persisted_rvc_enabled
-    supports_pack_pipeline = provider in {"piper", "style-bert-vits2"}
+    supports_pack_pipeline = provider in {
+        "piper",
+        "style-bert-vits2",
+        "chatterbox",
+    }
     local_engine_ready = False
     available = bool(provider and voice_id)
     enabled = bool(settings["enabled"])
@@ -936,6 +940,10 @@ def _voice_settings_payload() -> VoiceSettingsResponse:
                 message = f"{display_name}'s Style-Bert-VITS2 character voice is staged with the selected model."
             else:
                 message = f"{display_name}'s Style-Bert-VITS2 path is selected, but it still needs a local model or reference sample."
+        elif provider == "chatterbox":
+            message = (
+                f"{display_name}'s Chatterbox voice path is staged for local playback."
+            )
         else:
             message = f"{display_name}'s Piper voice path is staged for local playback."
 
@@ -948,7 +956,10 @@ def _voice_settings_payload() -> VoiceSettingsResponse:
             message = f"{message} Browser playback stays available as the local fallback for now."
     elif output_mode == "pack":
         state = "unavailable"
-        message = f"{display_name}'s pack voice path needs a Piper or Style-Bert-VITS2 profile before it can replace the browser fallback."
+        message = (
+            f"{display_name}'s pack voice path needs a Piper, Chatterbox, or "
+            "Style-Bert-VITS2 profile before it can replace the browser fallback."
+        )
     elif available:
         state = "ready"
         message = f"{display_name}'s voice is ready when you want it."

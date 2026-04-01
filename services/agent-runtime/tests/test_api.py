@@ -1176,6 +1176,49 @@ def test_voice_preferences_can_switch_to_pack_output_mode(
     assert '"output_mode": "pack"' in temp_state_files.read_text(encoding="utf-8")
 
 
+def test_voice_preferences_stage_chatterbox_pack_voice() -> None:
+    archive_bytes = make_pack_archive()
+    install_response = client.post(
+        "/api/packs/install",
+        json={
+            "filename": "sunrise-pack.zip",
+            "archive_base64": base64.b64encode(archive_bytes).decode("ascii"),
+        },
+    )
+    assert install_response.status_code == 200
+
+    pack_dir = personality_packs.PACKS_DIR / "sunrise-companion"
+    manifest_path = pack_dir / "pack.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["personality"]["voice"] = {
+        "provider": "chatterbox",
+        "voice_id": "momo-fast",
+        "model_id": "chatterbox-turbo",
+        "locale": "en-US",
+        "style": "expressive",
+        "fallback_provider": "browser",
+    }
+    manifest["security"]["signature"]["value"] = ""
+    _sign_manifest(manifest)
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    update_response = client.put(
+        "/api/preferences/voice",
+        json={"output_mode": "pack"},
+    )
+
+    assert update_response.status_code == 200
+    payload = update_response.json()
+    assert payload["output_mode"] == "pack"
+    assert payload["state"] == "configured"
+    assert payload["provider"] == "chatterbox"
+    assert payload["model_id"] == "chatterbox-turbo"
+    assert (
+        payload["message"]
+        == "Sunrise's Chatterbox voice path is staged for local playback. Browser playback stays available as the local fallback for now."
+    )
+
+
 def test_speech_input_preferences_default_to_disabled() -> None:
     response = client.get("/api/preferences/speech-input")
 

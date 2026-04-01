@@ -417,7 +417,7 @@ function createFetchMock(
               body.enabled === false
                 ? "muted"
                 : (body.output_mode ?? voiceStatus.output_mode) === "pack" &&
-                    !["piper", "style-bert-vits2"].includes(voiceStatus.provider)
+                    !["piper", "style-bert-vits2", "chatterbox"].includes(voiceStatus.provider)
                   ? "unavailable"
                   : (body.output_mode ?? voiceStatus.output_mode) === "pack"
                     ? "configured"
@@ -429,10 +429,13 @@ function createFetchMock(
                 ? `${voiceStatus.display_name}'s voice is resting until you want it.`
                 : (body.output_mode ?? voiceStatus.output_mode) === "pack" &&
                     !["piper", "style-bert-vits2"].includes(voiceStatus.provider)
-                  ? `${voiceStatus.display_name}'s pack voice path needs a Piper or Style-Bert-VITS2 profile before it can replace the browser fallback.`
+                  ? `${voiceStatus.display_name}'s pack voice path needs a Piper, Chatterbox, or Style-Bert-VITS2 profile before it can replace the browser fallback.`
                   : (body.output_mode ?? voiceStatus.output_mode) === "pack" &&
                       voiceStatus.provider === "style-bert-vits2"
                     ? `${voiceStatus.display_name}'s Style-Bert-VITS2 character voice is staged with the selected model. Browser playback stays available as the local fallback for now.`
+                    : (body.output_mode ?? voiceStatus.output_mode) === "pack" &&
+                        voiceStatus.provider === "chatterbox"
+                      ? `${voiceStatus.display_name}'s Chatterbox voice path is staged for local playback. Browser playback stays available as the local fallback for now.`
                     : (body.output_mode ?? voiceStatus.output_mode) === "pack" &&
                         voiceStatus.provider === "piper"
                       ? `${voiceStatus.display_name}'s Piper voice path is staged for local playback. Browser playback stays available as the local fallback for now.`
@@ -2038,6 +2041,54 @@ afterEach(() => {
         name: "Chain RVC conversion when supported",
       }),
     ).toBeChecked();
+  });
+
+  it("surfaces staged pack voice settings for chatterbox", async () => {
+    createFetchMock({
+      voiceStatus: {
+        enabled: true,
+        autoplay_enabled: false,
+        output_mode: "pack",
+        available: true,
+        state: "configured",
+        provider: "chatterbox",
+        voice_id: "momo-fast",
+        model_id: "chatterbox-turbo",
+        locale: "en-US",
+        style: "expressive",
+        fallback_provider: "browser",
+        reference_ready: true,
+        rvc_enabled: false,
+        rvc_model_id: null,
+        rvc_ready: false,
+        local_engine_ready: false,
+        display_name: "Sunrise",
+        message:
+          "Sunrise's Chatterbox voice path is staged for local playback. Browser playback stays available as the local fallback for now.",
+      },
+    });
+    const user = userEvent.setup();
+
+    render(<CompanionWorkspace />);
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+
+    expect(screen.getAllByText("Pack voice staged").length).toBeGreaterThan(0);
+    expect(
+      screen.getByText(
+        "pack voice / chatterbox / momo-fast / chatterbox-turbo / expressive / manual playback",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Chatterbox is selected as the low-latency local pack voice path. Browser playback remains the fallback until the local voice bridge lands.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Chain RVC conversion when supported",
+      }),
+    ).not.toBeChecked();
   });
 
   it("interrupts voice playback when a mic check starts listening", async () => {

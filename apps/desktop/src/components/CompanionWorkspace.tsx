@@ -426,12 +426,17 @@ function getSpeechOutputSupportLabel(
         ? "Style-Bert-VITS2 is connected for local character voice playback."
         : "Style-Bert-VITS2 is selected for character voice work. Browser playback remains the fallback until the local voice bridge lands.";
     }
+    if (voiceStatus.provider === "chatterbox") {
+      return voiceStatus.local_engine_ready
+        ? "Chatterbox is connected for low-latency local character voice playback."
+        : "Chatterbox is selected as the low-latency local pack voice path. Browser playback remains the fallback until the local voice bridge lands.";
+    }
     if (voiceStatus.provider === "piper") {
       return voiceStatus.local_engine_ready
         ? "Piper is connected for local pack voice playback."
         : "Piper is selected as the local pack voice path. Browser playback remains the fallback until the local voice bridge lands.";
     }
-    return "Pack voice mode is selected, but this pack still needs a Piper or Style-Bert-VITS2 profile.";
+    return "Pack voice mode is selected, but this pack still needs a Piper, Chatterbox, or Style-Bert-VITS2 profile.";
   }
   if (!support.synthesis) {
     return "This desktop shell does not expose browser speech playback here yet.";
@@ -1735,7 +1740,9 @@ export function CompanionWorkspace() {
     try {
       if (voiceStatus.output_mode === "pack" && !voiceStatus.local_engine_ready) {
         setSettingsNotice(
-          voiceStatus.provider === "style-bert-vits2" || voiceStatus.provider === "piper"
+          voiceStatus.provider === "style-bert-vits2" ||
+          voiceStatus.provider === "piper" ||
+          voiceStatus.provider === "chatterbox"
             ? `Using browser fallback while ${voiceStatus.display_name}'s pack voice engine is still staging.`
             : `${voiceStatus.display_name}'s pack voice path is not ready yet, so the browser fallback is handling this reply.`,
         );
