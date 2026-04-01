@@ -1178,6 +1178,48 @@ function createFetchMock(
           );
         }
 
+        if (body.message === "Help me start today with Sunrise. Give me a calm check-in, point me at one useful next step, and keep the desk steady.") {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                ok: true,
+                route: "companion-chat",
+                user_message: body.message,
+                assistant_response:
+                  "Good morning. Start with one small local check-in, then carry the setup thread into the next useful task.",
+                action: {
+                  type: "chat_reply",
+                  provider: "ollama",
+                  model: "llama3.1:8b-instruct",
+                },
+                loading: false,
+              }),
+              { status: 200 },
+            ),
+          );
+        }
+
+        if (body.message === "Help me wrap up today with Sunrise. Summarize what matters, what should carry forward, and the next thread to pick up tomorrow.") {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                ok: true,
+                route: "companion-chat",
+                user_message: body.message,
+                assistant_response:
+                  "You kept the setup thread moving. Carry forward the local model and pack polish, then pick that thread up first tomorrow.",
+                action: {
+                  type: "chat_reply",
+                  provider: "ollama",
+                  model: "llama3.1:8b-instruct",
+                },
+                loading: false,
+              }),
+              { status: 200 },
+            ),
+          );
+        }
+
         return Promise.reject(new Error(`Unexpected chat message: ${body.message}`));
       }
 
@@ -1330,6 +1372,18 @@ afterEach(() => {
     expect(
       screen.getByRole("button", { name: "Turn this into a check-in" }),
     ).toBeInTheDocument();
+    expect(screen.getByText("1 open notes")).toBeInTheDocument();
+    expect(screen.getByText("0 active timers")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start the day" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Focus the next step" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Review my notes" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Wrap up today" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Pack portrait")).toBeInTheDocument();
     expect(screen.getAllByText("Resting in workspace").length).toBeGreaterThan(0);
     expect(screen.getByLabelText("Sunrise avatar is idle")).toHaveAttribute(
@@ -1399,6 +1453,40 @@ afterEach(() => {
     expect(
       await screen.findByDisplayValue(
         'Based on "Recent: local setup", give me a calm check-in and help me resume from this thread: The user focused on local setup. The companion responded with a calm local reply.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("can run the start-of-day routine from the main desk", async () => {
+    createFetchMock();
+    const user = userEvent.setup();
+
+    render(<CompanionWorkspace />);
+
+    await user.click(await screen.findByRole("button", { name: "Start the day" }));
+
+    expect(
+      await screen.findByText(
+        "Good morning. Start with one small local check-in, then carry the setup thread into the next useful task.",
+        {},
+        { timeout: 2500 },
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("can run the wrap-up routine from the main desk", async () => {
+    createFetchMock();
+    const user = userEvent.setup();
+
+    render(<CompanionWorkspace />);
+
+    await user.click(await screen.findByRole("button", { name: "Wrap up today" }));
+
+    expect(
+      await screen.findByText(
+        "You kept the setup thread moving. Carry forward the local model and pack polish, then pick that thread up first tomorrow.",
+        {},
+        { timeout: 2500 },
       ),
     ).toBeInTheDocument();
   });
