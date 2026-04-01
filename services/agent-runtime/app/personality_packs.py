@@ -1019,6 +1019,20 @@ def get_pack_model_asset_path(pack_id: str) -> Path:
     return _asset_path_for_pack_dir(_pack_dir_for_id(manifest.id), asset_path)
 
 
+def get_pack_voice_reference_path(pack_id: str) -> Path:
+    """Resolve the installed voice reference sample declared by a pack manifest."""
+
+    manifest = _find_installed_manifest(pack_id)
+    if manifest is None:
+        raise ValueError(f"Installed pack not found: {pack_id.strip().lower()}")
+    reference_sample_path = manifest.personality.voice.reference_sample_path
+    if reference_sample_path is None:
+        raise ValueError("Pack does not declare a voice reference sample.")
+    return _asset_path_for_pack_dir(
+        _pack_dir_for_id(manifest.id), reference_sample_path
+    )
+
+
 def get_pack_asset_path_by_hash(pack_id: str, asset_hash: str) -> Path:
     """Resolve one installed pack asset by its signed manifest hash."""
 

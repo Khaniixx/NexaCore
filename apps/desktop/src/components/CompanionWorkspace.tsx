@@ -1749,8 +1749,13 @@ export function CompanionWorkspace() {
       }
       speechOutputSessionRef.current = startSpeechOutput({
         text,
+        apiBaseUrl: API_BASE_URL,
         locale: voiceStatus.locale,
         voiceHint: voiceStatus.voice_id,
+        outputMode: voiceStatus.output_mode,
+        provider: voiceStatus.provider,
+        fallbackProvider: voiceStatus.fallback_provider,
+        localEngineReady: voiceStatus.local_engine_ready,
         onStatusChange: (status) => {
           setSpeechOutputStatus(status);
           if (status === "idle" || status === "unsupported" || status === "error") {

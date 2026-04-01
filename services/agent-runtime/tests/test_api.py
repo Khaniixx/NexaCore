@@ -1176,7 +1176,14 @@ def test_voice_preferences_can_switch_to_pack_output_mode(
     assert '"output_mode": "pack"' in temp_state_files.read_text(encoding="utf-8")
 
 
-def test_voice_preferences_stage_chatterbox_pack_voice() -> None:
+def test_voice_preferences_stage_chatterbox_pack_voice(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.api.get_local_voice_bridge_status",
+        lambda _provider, model_id=None: SimpleNamespace(
+            ready=True,
+            detail=f"{model_id or 'chatterbox'} ready",
+        ),
+    )
     archive_bytes = make_pack_archive()
     install_response = client.post(
         "/api/packs/install",
@@ -1210,13 +1217,60 @@ def test_voice_preferences_stage_chatterbox_pack_voice() -> None:
     assert update_response.status_code == 200
     payload = update_response.json()
     assert payload["output_mode"] == "pack"
-    assert payload["state"] == "configured"
+    assert payload["state"] == "ready"
     assert payload["provider"] == "chatterbox"
     assert payload["model_id"] == "chatterbox-turbo"
     assert (
         payload["message"]
-        == "Sunrise's Chatterbox voice path is staged for local playback. Browser playback stays available as the local fallback for now."
+        == "Sunrise's Chatterbox voice bridge is ready for local playback."
     )
+
+
+def test_voice_synthesis_route_returns_chatterbox_audio(monkeypatch) -> None:
+    archive_bytes = make_pack_archive()
+    install_response = client.post(
+        "/api/packs/install",
+        json={
+            "filename": "sunrise-pack.zip",
+            "archive_base64": base64.b64encode(archive_bytes).decode("ascii"),
+        },
+    )
+    assert install_response.status_code == 200
+
+    pack_dir = personality_packs.PACKS_DIR / "sunrise-companion"
+    manifest_path = pack_dir / "pack.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["personality"]["voice"] = {
+        "provider": "chatterbox",
+        "voice_id": "momo-fast",
+        "model_id": "chatterbox-turbo",
+        "locale": "en-US",
+        "style": "expressive",
+        "reference_sample_path": "assets/icon.png",
+        "fallback_provider": "browser",
+    }
+    manifest["security"]["signature"]["value"] = ""
+    _sign_manifest(manifest)
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    client.put("/api/preferences/voice", json={"output_mode": "pack"})
+    monkeypatch.setattr(
+        "app.api.get_local_voice_bridge_status",
+        lambda _provider, model_id=None: SimpleNamespace(
+            ready=True,
+            detail=f"{model_id or 'chatterbox'} ready",
+        ),
+    )
+    monkeypatch.setattr(
+        "app.api.synthesize_chatterbox_speech",
+        lambda **kwargs: (b"RIFFdemo-wav", "audio/wav"),
+    )
+
+    response = client.post("/api/voice/synthesize", json={"text": "hello there"})
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "audio/wav"
+    assert response.content == b"RIFFdemo-wav"
 
 
 def test_speech_input_preferences_default_to_disabled() -> None:
