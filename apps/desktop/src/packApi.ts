@@ -31,6 +31,16 @@ export type PackAvatarConfig = {
   audio_cues?: Record<string, string>;
 };
 
+export type PackModelConfig = {
+  renderer?: "shell" | "live2d" | "vrm" | null;
+  asset_path?: string | null;
+  preview_image_path?: string | null;
+  idle_hook?: string | null;
+  attached_hook?: string | null;
+  perched_hook?: string | null;
+  speaking_hook?: string | null;
+};
+
 export type InstalledPack = {
   id: string;
   name: string;
@@ -48,6 +58,7 @@ export type InstalledPack = {
   style_rules?: string[];
   voice?: PackVoiceConfig;
   avatar?: PackAvatarConfig;
+  model?: PackModelConfig;
 };
 
 export type PackListResponse = {

@@ -718,6 +718,15 @@ function createFetchMock(
                       talking: "voice/sunrise-talk.ogg",
                     },
                   },
+                  model: {
+                    renderer: "live2d",
+                    asset_path: "models/sunrise.model3.json",
+                    preview_image_path: "assets/icon.png",
+                    idle_hook: "idle-loop",
+                    attached_hook: "dock-right",
+                    perched_hook: "perch-top",
+                    speaking_hook: "speak-soft",
+                  },
                 },
               ],
             }),
@@ -1126,7 +1135,7 @@ describe("CompanionWorkspace", () => {
     expect(screen.getByText("Ask a small question")).toBeInTheDocument();
     expect(screen.getByText("Set a timer or save a note")).toBeInTheDocument();
     expect(screen.getAllByText("Runtime ready").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Pack-styled").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Live2D-ready").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Voice ready").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Workspace only").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Sunrise").length).toBeGreaterThan(0);
@@ -1263,12 +1272,19 @@ describe("CompanionWorkspace", () => {
     expect(screen.getAllByText("Sunrise").length).toBeGreaterThan(0);
     expect(screen.getByText("OpenClaw ready")).toBeInTheDocument();
     expect(screen.getByText("Avatar profile")).toBeInTheDocument();
-    expect(screen.getAllByText("Pack-styled").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Live2D-ready").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Workspace only").length).toBeGreaterThan(0);
     expect(
-      screen.getByText("This pack is already carrying portrait art for the shell."),
+      screen.getByText(
+        "This pack already carries a Live2D manifest for the next rendering step.",
+      ),
     ).toBeInTheDocument();
     expect(screen.getByText("local / sunrise / warm")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Renderer: live2d / hooks: idle-loop, dock-right, perch-top, speak-soft",
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByText("Desktop presence")).toBeInTheDocument();
     expect(
       screen.getByText(

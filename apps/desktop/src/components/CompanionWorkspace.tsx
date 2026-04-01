@@ -142,16 +142,35 @@ function getAvatarReadiness(activePack: InstalledPack | null): {
   detail: string;
 } {
   const avatarConfig = activePack?.avatar;
-  const presentationMode = avatarConfig?.presentation_mode;
+  const modelConfig = activePack?.model;
+  const renderer = modelConfig?.renderer;
 
-  if (presentationMode === "model" || avatarConfig?.model_path) {
+  if (renderer === "live2d") {
+    return {
+      label: "Live2D-ready",
+      detail:
+        avatarConfig?.stage_label ??
+        "Pack declares a Live2D model manifest for a richer stage.",
+    };
+  }
+
+  if (renderer === "vrm") {
+    return {
+      label: "VRM-ready",
+      detail:
+        avatarConfig?.stage_label ??
+        "Pack declares a VRM model manifest for a richer stage.",
+    };
+  }
+
+  if (avatarConfig?.presentation_mode === "model" || avatarConfig?.model_path) {
     return {
       label: "Model-ready",
       detail: avatarConfig?.stage_label ?? "Pack is ready for richer avatar rendering.",
     };
   }
 
-  if (presentationMode === "portrait" || activePack?.icon_data_url) {
+  if (avatarConfig?.presentation_mode === "portrait" || activePack?.icon_data_url) {
     return {
       label: "Pack-styled",
       detail: avatarConfig?.stage_label ?? "Pack visuals are shaping this shell.",
@@ -169,6 +188,25 @@ function getAvatarReadiness(activePack: InstalledPack | null): {
     label: "Default shell",
     detail: "Aster is using the built-in fallback shell for now.",
   };
+}
+
+function getModelManifestSummary(activePack: InstalledPack | null): string {
+  const modelConfig = activePack?.model;
+  if (!modelConfig) {
+    return "Renderer: shell / hooks: built-in";
+  }
+
+  const renderer = modelConfig.renderer ?? "shell";
+  const hooks = [
+    modelConfig.idle_hook,
+    modelConfig.attached_hook,
+    modelConfig.perched_hook,
+    modelConfig.speaking_hook,
+  ].filter((value): value is string => Boolean(value));
+
+  return hooks.length > 0
+    ? `Renderer: ${renderer} / hooks: ${hooks.join(", ")}`
+    : `Renderer: ${renderer}`;
 }
 
 function getPresenceAttachmentLabel(
@@ -1646,6 +1684,7 @@ export function CompanionWorkspace() {
           state={companionState}
           displayName={companionTitle}
           avatarConfig={activePack?.avatar}
+          modelConfig={activePack?.model}
           iconDataUrl={activePack?.icon_data_url}
           presenceAnchor={presenceStatus?.anchor}
           presencePinned={desktopPresencePinned}
@@ -1711,13 +1750,18 @@ export function CompanionWorkspace() {
                 <strong>{avatarReadiness.label}</strong>
                 <p>{avatarReadiness.detail}</p>
                 <p>
-                  {activePack?.avatar?.presentation_mode === "model" ||
-                  activePack?.avatar?.model_path
-                    ? "This pack already carries a model path for the next rendering step."
+                  {activePack?.model?.renderer === "live2d"
+                    ? "This pack already carries a Live2D manifest for the next rendering step."
+                    : activePack?.model?.renderer === "vrm"
+                      ? "This pack already carries a VRM manifest for the next rendering step."
+                      : activePack?.avatar?.presentation_mode === "model" ||
+                          activePack?.avatar?.model_path
+                        ? "This pack already carries a model path for the next rendering step."
                     : activePack?.icon_data_url
                       ? "This pack is already carrying portrait art for the shell."
                       : "This companion is still using the built-in shell presentation."}
                 </p>
+                <p>{getModelManifestSummary(activePack)}</p>
               </article>
 
               <article className="settings-card">

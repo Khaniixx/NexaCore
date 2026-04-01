@@ -50,6 +50,7 @@ def make_pack_archive(
     required_capabilities: list[dict[str, str]] | None = None,
 ) -> bytes:
     icon_bytes = base64.b64decode(PNG_1X1_BASE64)
+    model_bytes = b'{"version":"1.0"}'
     manifest = {
         "schema_version": "1.0",
         "id": pack_id,
@@ -97,6 +98,15 @@ def make_pack_archive(
                 "reaction_animation": "reaction",
                 "audio_cues": {},
             },
+            "model": {
+                "renderer": "live2d",
+                "asset_path": "models/sunrise.model3.json",
+                "preview_image_path": "assets/icon.png",
+                "idle_hook": "idle-loop",
+                "attached_hook": "dock-right",
+                "perched_hook": "perch-top",
+                "speaking_hook": "speak-soft",
+            },
         },
         "memory_defaults": {
             "long_term_memory_enabled": True,
@@ -126,6 +136,7 @@ def make_pack_archive(
             },
             "asset_hashes": {
                 "assets/icon.png": f"sha256:{personality_packs._sha256_hex(icon_bytes)}",
+                "models/sunrise.model3.json": f"sha256:{personality_packs._sha256_hex(model_bytes)}",
             },
         },
         "extensions": {},
@@ -136,6 +147,7 @@ def make_pack_archive(
     with personality_packs.zipfile.ZipFile(archive_buffer, "w") as archive_file:
         archive_file.writestr("pack.json", json.dumps(manifest, indent=2))
         archive_file.writestr("assets/icon.png", icon_bytes)
+        archive_file.writestr("models/sunrise.model3.json", model_bytes)
     return archive_buffer.getvalue()
 
 
@@ -181,6 +193,8 @@ def test_default_active_pack_profile_is_intentional_when_no_pack_is_selected() -
     assert profile["voice"]["style"] == "gentle"
     assert profile["avatar"]["presentation_mode"] == "shell"
     assert profile["avatar"]["stage_label"] == "Desk shell"
+    assert profile["model"]["renderer"] == "shell"
+    assert profile["model"]["speaking_hook"] == "speaking"
 
 
 def test_install_pack_archive_persists_and_auto_selects() -> None:
@@ -199,6 +213,8 @@ def test_install_pack_archive_persists_and_auto_selects() -> None:
     assert payload["active_pack_id"] == "sunrise-companion"
     assert payload["pack"]["display_name"] == "Sunrise"
     assert payload["pack"]["active"] is True
+    assert payload["pack"]["model"]["renderer"] == "live2d"
+    assert payload["pack"]["model"]["asset_path"] == "models/sunrise.model3.json"
 
     list_response = client.get("/api/packs")
     assert list_response.status_code == 200
@@ -208,6 +224,7 @@ def test_install_pack_archive_persists_and_auto_selects() -> None:
             "justification": "Show the selected companion on screen.",
         }
     ]
+    assert list_response.json()["packs"][0]["model"]["attached_hook"] == "dock-right"
     assert preferences.get_active_pack_id() == "sunrise-companion"
 
 
