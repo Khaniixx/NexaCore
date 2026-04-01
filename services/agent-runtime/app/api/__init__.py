@@ -436,6 +436,11 @@ class InstalledPackResponse(BaseModel):
     active: bool
     icon_data_url: str | None
     installed_at: str | None
+    system_prompt: str | None = None
+    style_rules: list[str] = Field(default_factory=list)
+    voice: dict[str, str | None] = Field(default_factory=dict)
+    avatar: dict[str, object] = Field(default_factory=dict)
+    model: dict[str, str | None] = Field(default_factory=dict)
 
 
 class PackListResponse(BaseModel):

@@ -64,6 +64,7 @@ LOCAL_IMPORTER_PUBLIC_KEY: Final[dict[str, str]] = {
 PACK_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 HEX_COLOR_PATTERN: Final[re.Pattern[str]] = re.compile(r"^#[0-9a-fA-F]{6}$")
 AVATAR_PRESENTATION_MODES: Final[set[str]] = {"shell", "portrait", "model"}
+MODEL_RENDERERS: Final[set[str]] = {"shell", "live2d", "vrm"}
 
 
 def _normalized_relative_path(value: str) -> str:
@@ -238,6 +239,43 @@ class AvatarConfig(BaseModel):
         }
 
 
+class ModelConfig(BaseModel):
+    """Renderer-specific model manifest for richer embodiment."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    renderer: str = Field(default="shell", min_length=1)
+    asset_path: str | None = None
+    preview_image_path: str | None = None
+    idle_hook: str | None = None
+    attached_hook: str | None = None
+    perched_hook: str | None = None
+    speaking_hook: str | None = None
+
+    @field_validator("renderer")
+    @classmethod
+    def validate_renderer(cls, value: str) -> str:
+        normalized_value = value.strip().lower()
+        if normalized_value not in MODEL_RENDERERS:
+            raise ValueError("renderer must be one of: shell, live2d, vrm")
+        return normalized_value
+
+    @field_validator("asset_path", "preview_image_path")
+    @classmethod
+    def validate_optional_asset_path(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        return _normalized_relative_path(value)
+
+    @field_validator("idle_hook", "attached_hook", "perched_hook", "speaking_hook")
+    @classmethod
+    def validate_optional_hook(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        normalized_value = value.strip()
+        return normalized_value or None
+
+
 class PersonalityConfig(BaseModel):
     """Companion identity and presentation information."""
 
@@ -248,6 +286,7 @@ class PersonalityConfig(BaseModel):
     style_rules: list[str] = Field(default_factory=list)
     voice: VoiceConfig = Field(default_factory=VoiceConfig)
     avatar: AvatarConfig = Field(default_factory=AvatarConfig)
+    model: ModelConfig = Field(default_factory=ModelConfig)
 
 
 class MemoryDefaults(BaseModel):
@@ -389,6 +428,7 @@ class InstalledPackSummary(BaseModel):
     style_rules: list[str] = Field(default_factory=list)
     voice: dict[str, str | None] = Field(default_factory=dict)
     avatar: dict[str, object] = Field(default_factory=dict)
+    model: dict[str, str | None] = Field(default_factory=dict)
 
 
 def _default_personality_profile() -> dict[str, object]:
@@ -425,6 +465,15 @@ def _default_personality_profile() -> dict[str, object]:
             "reaction_animation": "reaction",
             "audio_cues": {},
         },
+        "model": {
+            "renderer": "shell",
+            "asset_path": None,
+            "preview_image_path": None,
+            "idle_hook": "idle",
+            "attached_hook": "attached",
+            "perched_hook": "perched",
+            "speaking_hook": "speaking",
+        },
     }
 
 
@@ -450,6 +499,10 @@ def _manifest_referenced_assets(manifest: PackManifest) -> set[str]:
     if manifest.personality.avatar.model_path is not None:
         referenced_assets.add(manifest.personality.avatar.model_path)
     referenced_assets.update(manifest.personality.avatar.audio_cues.values())
+    if manifest.personality.model.asset_path is not None:
+        referenced_assets.add(manifest.personality.model.asset_path)
+    if manifest.personality.model.preview_image_path is not None:
+        referenced_assets.add(manifest.personality.model.preview_image_path)
     return referenced_assets
 
 
@@ -663,6 +716,7 @@ def _summary_from_manifest(manifest: PackManifest) -> InstalledPackSummary:
         style_rules=list(manifest.personality.style_rules),
         voice=manifest.personality.voice.model_dump(mode="json"),
         avatar=manifest.personality.avatar.model_dump(mode="json"),
+        model=manifest.personality.model.model_dump(mode="json"),
     )
 
 
@@ -695,6 +749,7 @@ def get_active_pack_profile() -> dict[str, object]:
         "style_rules": list(manifest.personality.style_rules),
         "voice": manifest.personality.voice.model_dump(mode="json"),
         "avatar": manifest.personality.avatar.model_dump(mode="json"),
+        "model": manifest.personality.model.model_dump(mode="json"),
     }
 
 
@@ -999,6 +1054,15 @@ def _build_imported_manifest(
                 "talking_animation": "talking",
                 "reaction_animation": "reaction",
                 "audio_cues": {},
+            },
+            "model": {
+                "renderer": "shell",
+                "asset_path": None,
+                "preview_image_path": icon_path,
+                "idle_hook": "idle",
+                "attached_hook": "attached",
+                "perched_hook": "perched",
+                "speaking_hook": "speaking",
             },
         },
         "memory_defaults": {

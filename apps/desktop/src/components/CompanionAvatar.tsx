@@ -1,12 +1,17 @@
 import type { CSSProperties } from "react";
 
 import type { CompanionState } from "../companionStateMachine";
-import type { PackAvatarConfig, PackVoiceConfig } from "../packApi";
+import type {
+  PackAvatarConfig,
+  PackModelConfig,
+  PackVoiceConfig,
+} from "../packApi";
 
 type CompanionAvatarProps = {
   state: CompanionState;
   displayName?: string;
   avatarConfig?: PackAvatarConfig;
+  modelConfig?: PackModelConfig;
   voiceConfig?: PackVoiceConfig;
   iconDataUrl?: string | null;
   presenceAnchor?:
@@ -22,6 +27,7 @@ type CompanionAvatarProps = {
 };
 
 type AvatarPresentationMode = "shell" | "portrait" | "model";
+type AvatarModelRenderer = "shell" | "live2d" | "vrm" | null;
 
 function getAnimationName(
   state: CompanionState,
@@ -78,9 +84,15 @@ function getPresenceCue(state: CompanionState): string {
   return "Needs a breath";
 }
 
-function getAvatarMode(avatarConfig?: PackAvatarConfig): AvatarPresentationMode {
+function getAvatarMode(
+  avatarConfig?: PackAvatarConfig,
+  modelConfig?: PackModelConfig,
+): AvatarPresentationMode {
   if (avatarConfig?.presentation_mode === "portrait") {
     return "portrait";
+  }
+  if (modelConfig?.renderer === "live2d" || modelConfig?.renderer === "vrm") {
+    return "model";
   }
   if (
     avatarConfig?.presentation_mode === "model" ||
@@ -91,12 +103,29 @@ function getAvatarMode(avatarConfig?: PackAvatarConfig): AvatarPresentationMode 
   return "shell";
 }
 
+function getModelRenderer(modelConfig?: PackModelConfig): AvatarModelRenderer {
+  if (modelConfig?.renderer === "live2d" || modelConfig?.renderer === "vrm") {
+    return modelConfig.renderer;
+  }
+  if (modelConfig?.renderer === "shell") {
+    return "shell";
+  }
+  return null;
+}
+
 function getAvatarStageLabel(
   mode: AvatarPresentationMode,
   avatarConfig: PackAvatarConfig | undefined,
+  modelRenderer: AvatarModelRenderer,
 ): string {
   if (avatarConfig?.stage_label) {
     return avatarConfig.stage_label;
+  }
+  if (modelRenderer === "live2d") {
+    return "Live2D-ready stage";
+  }
+  if (modelRenderer === "vrm") {
+    return "VRM-ready stage";
   }
   if (mode === "model") {
     return "Model-ready shell";
@@ -107,7 +136,16 @@ function getAvatarStageLabel(
   return "Desk shell";
 }
 
-function getAvatarBadge(mode: AvatarPresentationMode): string {
+function getAvatarBadge(
+  mode: AvatarPresentationMode,
+  modelRenderer: AvatarModelRenderer,
+): string {
+  if (modelRenderer === "live2d") {
+    return "Live2D-ready";
+  }
+  if (modelRenderer === "vrm") {
+    return "VRM-ready";
+  }
   if (mode === "model") {
     return "Model-ready";
   }
@@ -119,8 +157,20 @@ function getAvatarBadge(mode: AvatarPresentationMode): string {
 
 function getAvatarReadiness(
   mode: AvatarPresentationMode,
+  modelRenderer: AvatarModelRenderer,
+  modelConfig: PackModelConfig | undefined,
   iconDataUrl: string | null | undefined,
 ): string {
+  if (modelRenderer === "live2d") {
+    return modelConfig?.asset_path
+      ? "Pack has a Live2D model manifest ready for the next renderer."
+      : "Pack is flagged for Live2D rendering once model assets arrive.";
+  }
+  if (modelRenderer === "vrm") {
+    return modelConfig?.asset_path
+      ? "Pack has a VRM model manifest ready for richer rendering."
+      : "Pack is flagged for VRM rendering once model assets arrive.";
+  }
   if (mode === "model") {
     return "Pack has a model path ready for richer rendering.";
   }
@@ -195,6 +245,7 @@ export function CompanionAvatar({
   state,
   displayName = "Aster",
   avatarConfig,
+  modelConfig,
   voiceConfig,
   iconDataUrl,
   presenceAnchor = "workspace",
@@ -205,10 +256,16 @@ export function CompanionAvatar({
   const animationName = getAnimationName(state, avatarConfig);
   const voiceCue = getVoiceCue(state, avatarConfig, voiceConfig);
   const presenceCue = getPresenceCue(state);
-  const avatarMode = getAvatarMode(avatarConfig);
-  const stageLabel = getAvatarStageLabel(avatarMode, avatarConfig);
-  const stageBadge = getAvatarBadge(avatarMode);
-  const readinessLabel = getAvatarReadiness(avatarMode, iconDataUrl);
+  const avatarMode = getAvatarMode(avatarConfig, modelConfig);
+  const modelRenderer = getModelRenderer(modelConfig);
+  const stageLabel = getAvatarStageLabel(avatarMode, avatarConfig, modelRenderer);
+  const stageBadge = getAvatarBadge(avatarMode, modelRenderer);
+  const readinessLabel = getAvatarReadiness(
+    avatarMode,
+    modelRenderer,
+    modelConfig,
+    iconDataUrl,
+  );
   const attachmentMode = getAttachmentMode(presencePinned, presenceAnchor);
   const attachmentLabel = getAttachmentLabel(
     attachmentMode,
@@ -228,6 +285,7 @@ export function CompanionAvatar({
       aria-label={`${displayName} avatar is ${state}`}
       data-animation={animationName}
       data-avatar-mode={avatarMode}
+      data-model-renderer={modelRenderer ?? "none"}
       data-attachment-mode={attachmentMode}
       data-attachment-label={attachmentLabel}
       data-idle-loop={state === "idle" ? "true" : "false"}
@@ -270,7 +328,11 @@ export function CompanionAvatar({
         </div>
         {avatarMode === "model" ? (
           <div className="avatar-model-ring" aria-hidden="true">
-            model path ready
+            {modelRenderer === "live2d"
+              ? "live2d manifest ready"
+              : modelRenderer === "vrm"
+                ? "vrm manifest ready"
+                : "model path ready"}
           </div>
         ) : null}
         <div className="avatar-face">

@@ -17,6 +17,13 @@ describe("CompanionAvatar", () => {
           aura_color: "#8CE6D8",
           idle_animation: "sunrise-idle",
         }}
+        modelConfig={{
+          renderer: "shell",
+          idle_hook: "idle",
+          attached_hook: "attached",
+          perched_hook: "perched",
+          speaking_hook: "speaking",
+        }}
         voiceConfig={{
           voice_id: "sunrise",
         }}
@@ -43,6 +50,15 @@ describe("CompanionAvatar", () => {
       <CompanionAvatar
         state="talking"
         displayName="Bloom"
+        modelConfig={{
+          renderer: "live2d",
+          asset_path: "models/bloom.model3.json",
+          preview_image_path: "models/bloom.png",
+          idle_hook: "idle-loop",
+          attached_hook: "dock-right",
+          perched_hook: "perch-top",
+          speaking_hook: "speak-soft",
+        }}
         avatarConfig={{
           presentation_mode: "model",
           stage_label: "Model shell",
@@ -61,14 +77,15 @@ describe("CompanionAvatar", () => {
     const avatar = screen.getByLabelText("Bloom avatar is talking");
     expect(avatar).toHaveAttribute("data-animation", "bloom-speak");
     expect(avatar).toHaveAttribute("data-avatar-mode", "model");
+    expect(avatar).toHaveAttribute("data-model-renderer", "live2d");
     expect(avatar).toHaveAttribute("data-idle-loop", "false");
     expect(avatar).toHaveAttribute("data-presence-cue", "With you now");
     expect(avatar).toHaveAttribute("data-voice-clip", "voice/bloom-talk.ogg");
     expect(screen.getByText(/bloom-speak animation/i)).toBeInTheDocument();
     expect(screen.getByText("With you now")).toBeInTheDocument();
     expect(screen.getByText("Model shell")).toBeInTheDocument();
-    expect(screen.getByText("Model-ready")).toBeInTheDocument();
-    expect(screen.getByText("model path ready")).toBeInTheDocument();
+    expect(screen.getByText("Live2D-ready")).toBeInTheDocument();
+    expect(screen.getByText("live2d manifest ready")).toBeInTheDocument();
   });
 
   it("shows attached presence cues when pinned beside the active app", () => {
@@ -82,6 +99,9 @@ describe("CompanionAvatar", () => {
         avatarConfig={{
           presentation_mode: "portrait",
           stage_label: "Window shell",
+        }}
+        modelConfig={{
+          renderer: "shell",
         }}
       />,
     );
