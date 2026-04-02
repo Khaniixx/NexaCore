@@ -299,7 +299,7 @@ def test_import_vrm_model_installs_a_vrm_pack() -> None:
     payload = response.json()
     assert payload["pack"]["display_name"] == "Lapine"
     assert payload["pack"]["model"]["renderer"] == "vrm"
-    assert payload["pack"]["model"]["asset_path"] == "models/lapine.vrm"
+    assert payload["pack"]["model"]["asset_path"] == "models/avatar.vrm"
     assert payload["pack"]["avatar"]["presentation_mode"] == "model"
     assert payload["pack"]["character_profile"]["origin"] == "vrm-import"
     assert payload["pack"]["required_capabilities"] == [
@@ -323,7 +323,7 @@ def test_import_vrm_model_sanitizes_path_like_filename() -> None:
     payload = response.json()
     assert payload["pack"]["id"] == "noir"
     assert payload["pack"]["display_name"] == "Noir"
-    assert payload["pack"]["model"]["asset_path"] == "models/noir.vrm"
+    assert payload["pack"]["model"]["asset_path"] == "models/avatar.vrm"
 
 
 def test_import_vrm_model_rejects_unsupported_filename_characters() -> None:
@@ -360,7 +360,7 @@ def test_import_vrm_model_avoids_colliding_with_existing_pack_ids() -> None:
     assert first_response.json()["pack"]["id"] == "noir"
     assert second_response.json()["pack"]["id"] == "noir-2"
     assert (
-        second_response.json()["pack"]["model"]["asset_path"] == "models/noir-2.vrm"
+        second_response.json()["pack"]["model"]["asset_path"] == "models/avatar.vrm"
     )
 
 
