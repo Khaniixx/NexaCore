@@ -96,6 +96,14 @@ def _sanitize_uploaded_filename(filename: str, *, required_suffix: str | None = 
         raise ValueError("Uploaded filename is required.")
     if basename in {".", ".."}:
         raise ValueError("Uploaded filename is invalid.")
+    if "/" in basename or "\\" in basename:
+        raise ValueError("Uploaded filename must not contain path separators.")
+    if any(ord(character) < 32 or ord(character) == 127 for character in basename):
+        raise ValueError("Uploaded filename contains invalid characters.")
+    for character in basename:
+        if character.isalnum() or character in {".", "-", "_", " "}:
+            continue
+        raise ValueError("Uploaded filename contains unsupported characters.")
     if required_suffix is not None and Path(basename).suffix.lower() != required_suffix.lower():
         raise ValueError(f"Uploaded file must use the {required_suffix} extension.")
     return basename

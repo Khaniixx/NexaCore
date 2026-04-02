@@ -326,6 +326,19 @@ def test_import_vrm_model_sanitizes_path_like_filename() -> None:
     assert payload["pack"]["model"]["asset_path"] == "models/noir.vrm"
 
 
+def test_import_vrm_model_rejects_unsupported_filename_characters() -> None:
+    response = client.post(
+        "/api/packs/import-vrm-model",
+        json={
+            "filename": "Noir?.vrm",
+            "model_base64": base64.b64encode(make_vrm_bytes()).decode("ascii"),
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Uploaded filename contains unsupported characters."
+
+
 def test_import_vrm_model_avoids_colliding_with_existing_pack_ids() -> None:
     first_response = client.post(
         "/api/packs/import-vrm-model",
