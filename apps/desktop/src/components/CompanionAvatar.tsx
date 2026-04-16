@@ -24,6 +24,7 @@ type CompanionAvatarProps = {
     | "workspace";
   presencePinned?: boolean;
   presenceTargetTitle?: string | null;
+  immersive?: boolean;
 };
 
 type AvatarPresentationMode = "shell" | "portrait" | "model";
@@ -251,6 +252,7 @@ export function CompanionAvatar({
   presenceAnchor = "workspace",
   presencePinned = false,
   presenceTargetTitle,
+  immersive = false,
 }: CompanionAvatarProps) {
   const stateLabel = state.charAt(0).toUpperCase() + state.slice(1);
   const animationName = getAnimationName(state, avatarConfig);
@@ -294,18 +296,22 @@ export function CompanionAvatar({
       data-voice-clip={voiceCue}
       style={avatarStyle}
     >
-      <div className="avatar-plaque" aria-hidden="true">
-        <span className="avatar-plaque__label">{stageLabel}</span>
-        <span className={`avatar-plaque__badge avatar-plaque__badge--${avatarMode}`}>
-          {stageBadge}
-        </span>
-      </div>
-      <div className="avatar-dock" aria-hidden="true">
-        <span className={`avatar-dock__chip avatar-dock__chip--${attachmentMode}`}>
-          {attachmentLabel}
-        </span>
-        <span className={`avatar-dock__rail avatar-dock__rail--${attachmentMode}`} />
-      </div>
+      {!immersive ? (
+        <>
+          <div className="avatar-plaque" aria-hidden="true">
+            <span className="avatar-plaque__label">{stageLabel}</span>
+            <span className={`avatar-plaque__badge avatar-plaque__badge--${avatarMode}`}>
+              {stageBadge}
+            </span>
+          </div>
+          <div className="avatar-dock" aria-hidden="true">
+            <span className={`avatar-dock__chip avatar-dock__chip--${attachmentMode}`}>
+              {attachmentLabel}
+            </span>
+            <span className={`avatar-dock__rail avatar-dock__rail--${attachmentMode}`} />
+          </div>
+        </>
+      ) : null}
       <div className="avatar-aura" />
       <div className="avatar-ears" aria-hidden="true">
         <span className={`avatar-ear avatar-ear--left avatar-ear--${state}`} />
@@ -326,7 +332,7 @@ export function CompanionAvatar({
             </span>
           )}
         </div>
-        {avatarMode === "model" ? (
+        {avatarMode === "model" && !immersive ? (
           <div className="avatar-model-ring" aria-hidden="true">
             {modelRenderer === "live2d"
               ? "live2d manifest ready"
@@ -341,17 +347,21 @@ export function CompanionAvatar({
           <span className={`avatar-mouth avatar-mouth--${state}`} />
         </div>
       </div>
-      <div className={`avatar-whisper avatar-whisper--${state}`} aria-hidden="true">
-        {presenceCue}
-      </div>
+      {!immersive ? (
+        <div className={`avatar-whisper avatar-whisper--${state}`} aria-hidden="true">
+          {presenceCue}
+        </div>
+      ) : null}
       <span className="avatar-screen-reader">
         {displayName} is using the {animationName} animation with the {voiceCue} cue.
         {` ${stageLabel}. ${readinessLabel} ${attachmentCue}. ${displayName} feels ${presenceCue.toLowerCase()}.`}
       </span>
-      <div className="avatar-status">
-        <span className="avatar-status__label">State</span>
-        <strong>{stateLabel}</strong>
-      </div>
+      {!immersive ? (
+        <div className="avatar-status">
+          <span className="avatar-status__label">State</span>
+          <strong>{stateLabel}</strong>
+        </div>
+      ) : null}
     </div>
   );
 }

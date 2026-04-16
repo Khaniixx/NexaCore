@@ -27,9 +27,11 @@ import {
   microUtilityApi,
   type MicroUtilityState,
 } from "../microUtilityApi";
+import { loadOnboardingProfile } from "../onboardingProfile";
 import {
   buildPackAssetUrl,
   packApi,
+  type PackModelConfig,
   type InstalledPack,
 } from "../packApi";
 import { getRendererRuntimeSupport } from "../rendererRuntime";
@@ -141,16 +143,21 @@ const starterMessages: CompanionMessage[] = [
 function buildStarterMessage(
   companionTitle: string,
   activePack: InstalledPack | null,
+  userName?: string | null,
 ): string {
   const opening = getActiveCharacterOpening(activePack);
   const summary = getActiveCharacterSummary(activePack);
+  const userPrefix =
+    typeof userName === "string" && userName.trim().length > 0
+      ? `Hey, ${userName.trim()}. `
+      : "";
   if (opening) {
-    return opening;
+    return `${userPrefix}${opening}`;
   }
   if (summary) {
-    return `${companionTitle} is here. ${summary}`;
+    return `${userPrefix}${companionTitle} is here. ${summary}`;
   }
-  return DEFAULT_STARTER_MESSAGE;
+  return `${userPrefix}${DEFAULT_STARTER_MESSAGE}`;
 }
 
 function buildVoicePreviewLine(
@@ -180,7 +187,32 @@ function waitForPacing(delayMs: number): Promise<void> {
   });
 }
 
-function getActivePackFromResponse(packs: InstalledPack[]): InstalledPack | null {
+function buildFallbackModelStatus(
+  model: string,
+  installerCompleted: boolean,
+): ChatModelStatus {
+  return {
+    provider: "local",
+    model,
+    state: installerCompleted ? "ready" : "loading",
+    present: installerCompleted,
+    loaded: installerCompleted,
+    message: installerCompleted
+      ? "Your local model is awake and ready."
+      : "Your local model is still getting comfortable.",
+  };
+}
+
+function getActivePackFromResponse(
+  packs: InstalledPack[],
+  activePackId?: string | null,
+): InstalledPack | null {
+  if (typeof activePackId === "string" && activePackId.trim().length > 0) {
+    const activeById = packs.find((pack) => pack.id === activePackId);
+    if (activeById) {
+      return activeById;
+    }
+  }
   return packs.find((pack) => pack.active) ?? null;
 }
 
@@ -218,6 +250,7 @@ function getCharacterOriginLabel(activePack: InstalledPack | null): string | nul
   }
   return typeof origin === "string" && origin.trim().length > 0 ? origin : null;
 }
+
 function buildCharacterContinuityGuidance(
   activePack: InstalledPack | null,
   companionTitle: string,
@@ -247,6 +280,38 @@ function getPackAssetUrl(
     return null;
   }
   return buildPackAssetUrl(activePack.id, assetType);
+}
+
+function resolvePackModelConfig(
+  activePack: InstalledPack | null,
+): PackModelConfig | undefined {
+  if (!activePack) {
+    return undefined;
+  }
+
+  const modelConfig = activePack.model;
+  if (modelConfig?.renderer && modelConfig.renderer !== "shell") {
+    return modelConfig;
+  }
+
+  const avatarModelPath = activePack.avatar?.model_path?.trim();
+  if (!avatarModelPath) {
+    return modelConfig ?? undefined;
+  }
+
+  if (avatarModelPath.toLowerCase().endsWith(".vrm")) {
+    return {
+      ...modelConfig,
+      renderer: "vrm",
+      asset_path: avatarModelPath,
+    };
+  }
+
+  return {
+    ...modelConfig,
+    renderer: "live2d",
+    asset_path: avatarModelPath,
+  };
 }
 
 function getAmbientDeskCue(state: CompanionState, companionTitle: string): string {
@@ -553,12 +618,15 @@ function getSpeechInputSupportLabel(
   return "Mic capture is available, but browser speech recognition is not exposed here yet.";
 }
 
-function getAvatarReadiness(activePack: InstalledPack | null): {
+function getAvatarReadiness(
+  activePack: InstalledPack | null,
+  resolvedModelConfig?: PackModelConfig,
+): {
   label: string;
   detail: string;
 } {
   const avatarConfig = activePack?.avatar;
-  const modelConfig = activePack?.model;
+  const modelConfig = resolvedModelConfig ?? activePack?.model;
   const renderer = modelConfig?.renderer;
 
   if (renderer === "live2d") {
@@ -602,12 +670,15 @@ function getAvatarReadiness(activePack: InstalledPack | null): {
 
   return {
     label: "Default shell",
-    detail: "Aster is using the built-in fallback shell for now.",
+    detail: "The built-in fallback shell is standing in for now.",
   };
 }
 
-function getModelManifestSummary(activePack: InstalledPack | null): string {
-  const modelConfig = activePack?.model;
+function getModelManifestSummary(
+  activePack: InstalledPack | null,
+  resolvedModelConfig?: PackModelConfig,
+): string {
+  const modelConfig = resolvedModelConfig ?? activePack?.model;
   if (!modelConfig) {
     return "Renderer: shell / hooks: built-in";
   }
@@ -703,6 +774,7 @@ function getPresenceAttachmentDetail(
 }
 
 export function CompanionWorkspace() {
+  const onboardingProfile = useMemo(() => loadOnboardingProfile(), []);
   const [initialSession] = useState(() => loadCompanionSession(starterMessages));
   const [companionState, setCompanionState] = useState<CompanionState>(
     initialSession.companionState,
@@ -770,13 +842,19 @@ export function CompanionWorkspace() {
     pack_pending_message_count: 0,
   });
   const [activePack, setActivePack] = useState<InstalledPack | null>(null);
+  const resolvedModelConfig = useMemo(() => resolvePackModelConfig(activePack), [activePack]);
   const activePackPreviewImageUrl = useMemo(
-    () => getPackAssetUrl(activePack, "preview-image", activePack?.model?.preview_image_path),
-    [activePack],
+    () =>
+      getPackAssetUrl(
+        activePack,
+        "preview-image",
+        resolvedModelConfig?.preview_image_path,
+      ),
+    [activePack, resolvedModelConfig],
   );
   const activePackModelAssetUrl = useMemo(
-    () => getPackAssetUrl(activePack, "model-asset", activePack?.model?.asset_path),
-    [activePack],
+    () => getPackAssetUrl(activePack, "model-asset", resolvedModelConfig?.asset_path),
+    [activePack, resolvedModelConfig],
   );
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
@@ -793,6 +871,7 @@ export function CompanionWorkspace() {
   const streamBubbleTimerRef = useRef<number | null>(null);
   const seenStreamEventIdsRef = useRef<Set<number>>(new Set());
   const seenUtilityAlertIdsRef = useRef<Set<number>>(new Set());
+  const lastAutoplayedStarterRef = useRef<string | null>(null);
   const activePackRef = useRef<InstalledPack | null>(null);
   const voiceStatusRef = useRef<VoiceStatus | null>(null);
   const speechOutputSessionRef = useRef<SpeechOutputSession | null>(null);
@@ -840,10 +919,91 @@ export function CompanionWorkspace() {
     voiceStatusRef.current = voiceStatus;
   }, [voiceStatus]);
 
+  const speakCompanionText = useCallback((text: string): boolean => {
+    if (!voiceStatus?.enabled) {
+      setSettingsNotice("Turn voice on before asking the companion to speak.");
+      return false;
+    }
+
+    const localPackVoiceReady = canUseLocalPackVoicePlayback(
+      voiceStatus,
+      speechOutputSupport,
+    );
+    if (!speechOutputSupport.synthesis && !localPackVoiceReady) {
+      setSettingsNotice("Browser speech playback is not available in this shell.");
+      setSpeechOutputStatus("unsupported");
+      return false;
+    }
+
+    stopSpeechOutputPlayback();
+    stopSpeechInputSession();
+    setSpeechOutputProgress({
+      charIndex: 0,
+      progress: 0,
+      textLength: text.length,
+    });
+
+    try {
+      if (voiceStatus.output_mode === "pack" && !voiceStatus.local_engine_ready) {
+        setSettingsNotice(
+          voiceStatus.provider === "style-bert-vits2" ||
+            voiceStatus.provider === "piper" ||
+            voiceStatus.provider === "chatterbox"
+            ? `Using browser fallback while ${voiceStatus.display_name}'s pack voice engine is still staging.`
+            : `${voiceStatus.display_name}'s pack voice path is not ready yet, so the browser fallback is handling this reply.`,
+        );
+      }
+      speechOutputSessionRef.current = startSpeechOutput({
+        text,
+        apiBaseUrl: API_BASE_URL,
+        locale: voiceStatus.locale,
+        voiceHint: voiceStatus.voice_id,
+        outputMode: voiceStatus.output_mode,
+        provider: voiceStatus.provider,
+        fallbackProvider: voiceStatus.fallback_provider,
+        localEngineReady: voiceStatus.local_engine_ready,
+        onStatusChange: (status) => {
+          setSpeechOutputStatus(status);
+          if (status === "idle" || status === "unsupported" || status === "error") {
+            speechOutputSessionRef.current = null;
+            setSpeechOutputProgress({
+              charIndex: 0,
+              progress: 0,
+              textLength: 0,
+            });
+          }
+        },
+        onProgress: (progress) => {
+          setSpeechOutputProgress(progress);
+        },
+        onError: (message) => {
+          setSettingsNotice(message);
+        },
+      });
+      return true;
+    } catch (error) {
+      setSpeechOutputStatus("error");
+      setSpeechOutputProgress({
+        charIndex: 0,
+        progress: 0,
+        textLength: 0,
+      });
+      setSettingsNotice(
+        error instanceof Error
+          ? error.message
+          : "Speech playback stopped before it could begin.",
+      );
+      return false;
+    }
+  }, [speechOutputSupport, voiceStatus]);
+
   useEffect(() => {
     const starterText = buildStarterMessage(
-      activePack?.display_name ?? DEFAULT_COMPANION_NAME,
+      onboardingProfile?.companion_name?.trim() ||
+        activePack?.display_name ||
+        DEFAULT_COMPANION_NAME,
       activePack,
+      onboardingProfile?.user_name ?? null,
     );
     setMessages((currentMessages) => {
       if (
@@ -863,7 +1023,43 @@ export function CompanionWorkspace() {
       }
       return currentMessages;
     });
-  }, [activePack]);
+  }, [activePack, onboardingProfile]);
+
+  useEffect(() => {
+    const currentVoiceStatus = voiceStatusRef.current;
+    const starterText = buildStarterMessage(
+      onboardingProfile?.companion_name?.trim() ||
+        activePack?.display_name ||
+        DEFAULT_COMPANION_NAME,
+      activePack,
+      onboardingProfile?.user_name ?? null,
+    );
+
+    if (
+      onboardingProfile?.completed !== true ||
+      !currentVoiceStatus?.enabled ||
+      currentVoiceStatus.state === "muted" ||
+      currentVoiceStatus.state === "unavailable" ||
+      speechOutputStatus === "speaking" ||
+      speechOutputStatus === "starting" ||
+      messages.length !== 1 ||
+      messages[0]?.sender !== "companion" ||
+      messages[0]?.text !== starterText ||
+      lastAutoplayedStarterRef.current === starterText
+    ) {
+      return;
+    }
+
+    lastAutoplayedStarterRef.current = starterText;
+    speakCompanionText(starterText);
+  }, [
+    activePack,
+    messages,
+    onboardingProfile,
+    speakCompanionText,
+    speechOutputStatus,
+    voiceStatus,
+  ]);
 
   useEffect(() => {
     void (async () => {
@@ -899,6 +1095,8 @@ export function CompanionWorkspace() {
 
   useEffect(() => {
     let active = true;
+    let retryCount = 0;
+    let retryTimerId: number | null = null;
 
     async function loadWorkspaceState(): Promise<void> {
       try {
@@ -926,7 +1124,7 @@ export function CompanionWorkspace() {
           packApi.listPacks(),
           microUtilityApi.getState(),
           streamApi.getState(),
-          fetch(`${API_BASE_URL}/api/chat/model-status`),
+          fetch(`${API_BASE_URL}/api/chat/model-status`).catch(() => null),
           memoryApi.listSummaries(),
         ]);
 
@@ -934,8 +1132,7 @@ export function CompanionWorkspace() {
           !openAppResponse.ok ||
           !openUrlResponse.ok ||
           !voiceResponse.ok ||
-          !presenceResponse.ok ||
-          !modelStatusResponse.ok
+          !presenceResponse.ok
         ) {
           throw new Error("Runtime returned an unexpected permissions response");
         }
@@ -953,7 +1150,14 @@ export function CompanionWorkspace() {
           voiceResponse.json(),
           Promise.resolve(speechInputResponse),
           presenceResponse.json(),
-          modelStatusResponse.json(),
+          modelStatusResponse && modelStatusResponse.ok
+            ? modelStatusResponse.json()
+            : Promise.resolve(
+                buildFallbackModelStatus(
+                  installerStatus.ai.model,
+                  installerStatus.completed,
+                ),
+              ),
         ])) as [
           PermissionResponse,
           PermissionResponse,
@@ -979,7 +1183,9 @@ export function CompanionWorkspace() {
         setModelStatus(nextModelStatus);
         setInstallerCompleted(installerStatus.completed);
         setMemorySummaryState(nextMemorySummaryState);
-        setActivePack(getActivePackFromResponse(packResponse.packs));
+        setActivePack(
+          getActivePackFromResponse(packResponse.packs, packResponse.active_pack_id),
+        );
         setMicroUtilityState(utilityState);
         seenUtilityAlertIdsRef.current = new Set(
           utilityState.alerts.map((item) => item.id),
@@ -991,8 +1197,18 @@ export function CompanionWorkspace() {
         if (nextModelStatus.state !== "ready") {
           appendUniqueCompanionMessage(nextModelStatus.message);
         }
+        retryCount = 0;
       } catch {
         if (!active) {
+          return;
+        }
+
+        if (retryCount < 4) {
+          retryCount += 1;
+          retryTimerId = window.setTimeout(() => {
+            retryTimerId = null;
+            void loadWorkspaceState();
+          }, 1200);
           return;
         }
 
@@ -1020,6 +1236,9 @@ export function CompanionWorkspace() {
 
     return () => {
       active = false;
+      if (retryTimerId !== null) {
+        window.clearTimeout(retryTimerId);
+      }
     };
   }, [appendUniqueCompanionMessage]);
 
@@ -1539,7 +1758,7 @@ export function CompanionWorkspace() {
       packApi.listPacks(),
       microUtilityApi.getState(),
       streamApi.getState(),
-      fetch(`${API_BASE_URL}/api/chat/model-status`),
+      fetch(`${API_BASE_URL}/api/chat/model-status`).catch(() => null),
       memoryApi.listSummaries(),
     ]);
 
@@ -1547,8 +1766,7 @@ export function CompanionWorkspace() {
       !openAppResponse.ok ||
       !openUrlResponse.ok ||
       !voiceResponse.ok ||
-      !presenceResponse.ok ||
-      !modelStatusResponse.ok
+      !presenceResponse.ok
     ) {
       throw new Error("Runtime returned an unexpected settings response");
     }
@@ -1566,7 +1784,14 @@ export function CompanionWorkspace() {
       voiceResponse.json(),
       Promise.resolve(speechInputResponse),
       presenceResponse.json(),
-      modelStatusResponse.json(),
+      modelStatusResponse && modelStatusResponse.ok
+        ? modelStatusResponse.json()
+        : Promise.resolve(
+            buildFallbackModelStatus(
+              installerStatus.ai.model,
+              installerStatus.completed,
+            ),
+          ),
     ])) as [
       PermissionResponse,
       PermissionResponse,
@@ -1588,7 +1813,9 @@ export function CompanionWorkspace() {
     setModelStatus(nextModelStatus);
     setInstallerCompleted(installerStatus.completed);
     setMemorySummaryState(nextMemorySummaryState);
-    setActivePack(getActivePackFromResponse(packResponse.packs));
+    setActivePack(
+      getActivePackFromResponse(packResponse.packs, packResponse.active_pack_id),
+    );
     setMicroUtilityState(utilityState);
     setStreamState(nextStreamState);
     seenStreamEventIdsRef.current = new Set(
@@ -1611,7 +1838,11 @@ export function CompanionWorkspace() {
       {
         id: 1,
         sender: "companion",
-        text: buildStarterMessage(companionTitle, activePack),
+        text: buildStarterMessage(
+          companionTitle,
+          activePack,
+          onboardingProfile?.user_name ?? null,
+        ),
       },
     ]);
     setCompanionState("idle");
@@ -1667,12 +1898,13 @@ export function CompanionWorkspace() {
       setIsSavingModel(true);
       await installerApi.configureAI(selectedModel);
 
-      const response = await fetch(`${API_BASE_URL}/api/chat/model-status`);
-      if (!response.ok) {
-        throw new Error(`Runtime returned ${response.status}`);
-      }
-
-      const nextModelStatus = (await response.json()) as ChatModelStatus;
+      const response = await fetch(`${API_BASE_URL}/api/chat/model-status`).catch(
+        () => null,
+      );
+      const nextModelStatus =
+        response && response.ok
+          ? ((await response.json()) as ChatModelStatus)
+          : buildFallbackModelStatus(selectedModel, true);
       setModelStatus(nextModelStatus);
       setSettingsNotice("Saved your local model choice for future chats.");
       appendCompanionMessage(
@@ -1804,84 +2036,6 @@ export function CompanionWorkspace() {
     }
   }
 
-  function speakCompanionText(text: string): boolean {
-    if (!voiceStatus?.enabled) {
-      setSettingsNotice("Turn voice on before asking Aster to speak.");
-      return false;
-    }
-
-    const localPackVoiceReady = canUseLocalPackVoicePlayback(
-      voiceStatus,
-      speechOutputSupport,
-    );
-    if (!speechOutputSupport.synthesis && !localPackVoiceReady) {
-      setSettingsNotice("Browser speech playback is not available in this shell.");
-      setSpeechOutputStatus("unsupported");
-      return false;
-    }
-
-    stopSpeechOutputPlayback();
-    stopSpeechInputSession();
-    setSpeechOutputProgress({
-      charIndex: 0,
-      progress: 0,
-      textLength: text.length,
-    });
-
-    try {
-      if (voiceStatus.output_mode === "pack" && !voiceStatus.local_engine_ready) {
-        setSettingsNotice(
-          voiceStatus.provider === "style-bert-vits2" ||
-          voiceStatus.provider === "piper" ||
-          voiceStatus.provider === "chatterbox"
-            ? `Using browser fallback while ${voiceStatus.display_name}'s pack voice engine is still staging.`
-            : `${voiceStatus.display_name}'s pack voice path is not ready yet, so the browser fallback is handling this reply.`,
-        );
-      }
-      speechOutputSessionRef.current = startSpeechOutput({
-        text,
-        apiBaseUrl: API_BASE_URL,
-        locale: voiceStatus.locale,
-        voiceHint: voiceStatus.voice_id,
-        outputMode: voiceStatus.output_mode,
-        provider: voiceStatus.provider,
-        fallbackProvider: voiceStatus.fallback_provider,
-        localEngineReady: voiceStatus.local_engine_ready,
-        onStatusChange: (status) => {
-          setSpeechOutputStatus(status);
-          if (status === "idle" || status === "unsupported" || status === "error") {
-            speechOutputSessionRef.current = null;
-            setSpeechOutputProgress({
-              charIndex: 0,
-              progress: 0,
-              textLength: 0,
-            });
-          }
-        },
-        onProgress: (progress) => {
-          setSpeechOutputProgress(progress);
-        },
-        onError: (message) => {
-          setSettingsNotice(message);
-        },
-      });
-      return true;
-    } catch (error) {
-      setSpeechOutputStatus("error");
-      setSpeechOutputProgress({
-        charIndex: 0,
-        progress: 0,
-        textLength: 0,
-      });
-      setSettingsNotice(
-        error instanceof Error
-          ? error.message
-          : "Speech playback stopped before it could begin.",
-      );
-      return false;
-    }
-  }
-
   async function handleReadLatestReply(): Promise<void> {
     if (speechOutputStatus === "speaking" || speechOutputStatus === "starting") {
       stopSpeechOutputPlayback();
@@ -1898,7 +2052,7 @@ export function CompanionWorkspace() {
       setSettingsNotice(
         voiceStatus?.output_mode === "pack" && !voiceStatus.local_engine_ready
           ? `Reading the latest reply through the browser fallback while ${voiceStatus.display_name}'s pack voice path is still staging.`
-          : `Reading the latest reply in ${voiceStatus?.display_name ?? "Aster"}'s voice.`,
+        : `Reading the latest reply in ${voiceStatus?.display_name ?? companionTitle}'s voice.`,
       );
     }
   }
@@ -1980,7 +2134,7 @@ export function CompanionWorkspace() {
     try {
       if (speechOutputSessionRef.current !== null) {
         stopSpeechOutputPlayback();
-        setSettingsNotice("Aster stopped speaking so the desk could listen.");
+      setSettingsNotice(`${companionTitle} stopped speaking so the desk could listen.`);
       }
       setSpeechInputDraft(null);
       setSpeechInputActivity({
@@ -2429,24 +2583,21 @@ export function CompanionWorkspace() {
   );
 
   const companionTitle = useMemo(
-    () => activePack?.display_name ?? DEFAULT_COMPANION_NAME,
-    [activePack],
+    () =>
+      activePack?.display_name ||
+      voiceStatus?.display_name?.trim() ||
+      onboardingProfile?.companion_name?.trim() ||
+      DEFAULT_COMPANION_NAME,
+    [activePack, onboardingProfile, voiceStatus],
   );
+  const userDisplayName = onboardingProfile?.user_name?.trim() || "You";
   const avatarReadiness = useMemo(
-    () => getAvatarReadiness(activePack),
-    [activePack],
+    () => getAvatarReadiness(activePack, resolvedModelConfig),
+    [activePack, resolvedModelConfig],
   );
   const runtimeReadinessLabel = installerCompleted
     ? "Runtime ready"
     : "Runtime needs attention";
-  const modelReadinessLabel =
-    modelStatus?.state === "ready"
-      ? "Local model ready"
-      : modelStatus?.state === "loading"
-        ? "Local model warming"
-        : modelStatus?.state === "missing"
-          ? "Model needs download"
-        : "Checking local model";
   const voiceReadinessLabel =
     getSpeechOutputReadinessLabel(
       voiceStatus,
@@ -2590,7 +2741,7 @@ export function CompanionWorkspace() {
         overlayActive && !isSettingsOpen
           ? " app-shell--overlay"
           : ""
-      }`}
+      }${!isSettingsOpen ? " app-shell--focus" : ""}`}
     >
       <section
         className={`stage-panel${
@@ -2599,61 +2750,26 @@ export function CompanionWorkspace() {
             : ""
         }`}
       >
-        <div className="stage-panel__copy">
-          <span className="eyebrow">Companion OS</span>
-            <h1>{companionTitle} is awake.</h1>
+        {isSettingsOpen ? (
+          <div className="stage-panel__copy">
+            <span className="eyebrow">NexaCore</span>
+            <h1>{companionTitle}</h1>
             <p>
-              {activeCharacterSummary ??
+              {activeCharacterOpening ??
+                activeCharacterSummary ??
                 "A calm local companion for check-ins, useful actions, and one continuous thread you can pick up whenever the day gets noisy."}
             </p>
-          <div className="stage-panel__rail" aria-label="Companion readiness">
-            <div className="stage-panel__rail-item">
-              <span className="stage-panel__rail-label">Identity</span>
-              <strong>{companionTitle}</strong>
+            <div className="stage-panel__presence" aria-label="Companion qualities">
+              <span>{avatarReadiness.label}</span>
+              <span>{voiceReadinessLabel}</span>
+              <span>{companionStateSummary}</span>
             </div>
-            <div className="stage-panel__rail-item">
-              <span className="stage-panel__rail-label">Model</span>
-              <strong>{modelReadinessLabel}</strong>
-            </div>
-            <div className="stage-panel__rail-item">
-              <span className="stage-panel__rail-label">Runtime</span>
-              <strong>{runtimeReadinessLabel}</strong>
-            </div>
-            <div className="stage-panel__rail-item">
-              <span className="stage-panel__rail-label">Avatar</span>
-              <strong>{avatarReadiness.label}</strong>
-            </div>
-            <div className="stage-panel__rail-item">
-              <span className="stage-panel__rail-label">Ears</span>
-              <strong>{speechInputReadinessLabel}</strong>
-            </div>
-            <div className="stage-panel__rail-item">
-              <span className="stage-panel__rail-label">Voice</span>
-              <strong>{voiceReadinessLabel}</strong>
-            </div>
-            <div className="stage-panel__rail-item">
-              <span className="stage-panel__rail-label">Presence</span>
-              <strong>{presenceReadinessLabel}</strong>
-            </div>
+            <p className="stage-panel__ambient" aria-live="polite">
+              <strong>{presenceAttachmentLabel}</strong>
+              <span>{presenceAttachmentDetail || ambientDeskCue}</span>
+            </p>
           </div>
-          <div className="stage-panel__presence" aria-label="Companion qualities">
-            <span>Local-first replies</span>
-            <span>Useful desk actions</span>
-            <span>One steady thread</span>
-          </div>
-          <div className="stage-panel__attachment" aria-label="Presence attachment">
-            <strong>{presenceAttachmentLabel}</strong>
-            <span>{presenceAttachmentDetail}</span>
-          </div>
-          <p className="stage-panel__note">
-            <strong>Right now</strong>
-            <span>{companionStateSummary}</span>
-          </p>
-          <p className="stage-panel__ambient" aria-live="polite">
-            <strong>Desk tone</strong>
-            <span>{ambientDeskCue}</span>
-          </p>
-        </div>
+        ) : null}
         {activeStreamEvent ? (
           <article className="stream-bubble" aria-live="polite">
             <span className="eyebrow">
@@ -2667,7 +2783,7 @@ export function CompanionWorkspace() {
           displayName={companionTitle}
           packId={activePack?.id}
           avatarConfig={activePack?.avatar}
-          modelConfig={activePack?.model}
+          modelConfig={resolvedModelConfig}
           iconDataUrl={activePack?.icon_data_url}
           previewImageUrl={activePackPreviewImageUrl}
           modelAssetUrl={activePackModelAssetUrl}
@@ -2680,19 +2796,22 @@ export function CompanionWorkspace() {
           speechPlaybackStatus={speechOutputStatus}
           speechPlaybackProgress={speechOutputProgress.progress}
           speechPlaybackTextLength={speechOutputProgress.textLength}
+          immersive={!isSettingsOpen}
         />
       </section>
 
-      <aside className="chat-panel">
+      <aside className={`chat-panel${!isSettingsOpen ? " chat-panel--focus-minimal" : ""}`}>
         <div className="chat-panel__header">
-          <div className="chat-panel__header-copy">
-            <span className="eyebrow">Conversation</span>
-            <h2>Stay in step with {companionTitle}</h2>
-            <p>
-              Ask for help, start something useful, or pick up the thread
-              without losing the feeling that the companion is still nearby.
-            </p>
-          </div>
+          {isSettingsOpen ? (
+            <div className="chat-panel__header-copy">
+              <span className="eyebrow">Conversation</span>
+              <h2>Talk with {companionTitle}</h2>
+              <p>
+                Ask for help, start something useful, or pick up the thread
+                without losing the feeling that the companion is still nearby.
+              </p>
+            </div>
+          ) : null}
           <div className="chat-panel__header-actions">
             <button
               className="settings-toggle-button"
@@ -2744,9 +2863,9 @@ export function CompanionWorkspace() {
                 <strong>{avatarReadiness.label}</strong>
                 <p>{avatarReadiness.detail}</p>
                 <p>
-                  {activePack?.model?.renderer === "live2d"
+                  {resolvedModelConfig?.renderer === "live2d"
                     ? "This pack already carries a Live2D manifest for the next rendering step."
-                    : activePack?.model?.renderer === "vrm"
+                    : resolvedModelConfig?.renderer === "vrm"
                       ? "This pack already carries a VRM manifest for the next rendering step."
                       : activePack?.avatar?.presentation_mode === "model" ||
                           activePack?.avatar?.model_path
@@ -2755,7 +2874,7 @@ export function CompanionWorkspace() {
                       ? "This pack is already carrying portrait art for the shell."
                       : "This companion is still using the built-in shell presentation."}
                 </p>
-                <p>{getModelManifestSummary(activePack)}</p>
+                <p>{getModelManifestSummary(activePack, resolvedModelConfig)}</p>
               </article>
 
               <article className="settings-card">
@@ -2965,7 +3084,7 @@ export function CompanionWorkspace() {
                 <strong>{presenceReadinessLabel}</strong>
                 <p>
                   {presenceStatus?.message ??
-                    "Checking whether Aster is staying in the workspace or pinned above the desktop."}
+                    `Checking whether ${companionTitle} is staying in the workspace or pinned above the desktop.`}
                 </p>
                 <p>Anchor: {presenceAnchorLabel}</p>
                 <p>{presenceAttachmentDetail}</p>
@@ -2988,7 +3107,7 @@ export function CompanionWorkspace() {
                       });
                     }}
                   />
-                  <span>Pin Aster above the desktop</span>
+                  <span>Pin {companionTitle} above the desktop</span>
                 </label>
                 <label className="settings-toggle">
                   <input
@@ -3085,49 +3204,76 @@ export function CompanionWorkspace() {
               onSave={handleSaveStreamSettings}
             />
           </section>
-        ) : null}
+        ) : (
+          <section className="focus-composer-shell" aria-label={`${companionTitle} live controls`}>
+            <form className="composer" onSubmit={handleSubmit}>
+              <label className="composer__label" htmlFor="chat-input">
+                Write to {companionTitle}. The thread stays local and picks up where
+                you left it.
+              </label>
+              <textarea
+                id="chat-input"
+                className="composer__input"
+                placeholder={`Ask ${companionTitle} for help, a timer, an app, or a small check-in...`}
+                rows={4}
+                value={draft}
+                disabled={isSending}
+                onChange={(event) => handleDraftChange(event.target.value)}
+              />
+              <button
+                className="composer__submit"
+                disabled={isSending}
+                type="submit"
+              >
+                {isSending ? "Waiting for reply..." : "Send message"}
+              </button>
+            </form>
+          </section>
+        )}
 
-        <MicroUtilitiesPanel
-          isBusy={
-            isSending ||
-            isLoadingUtilities ||
-            isLoadingOpenAppPermission ||
-            isLoadingOpenUrlPermission
-          }
-          state={microUtilityState}
-          onSetTimer={() => {
-            void submitMessage("set a 5 minute timer");
-          }}
-          onSaveClipboard={() => {
-            void submitMessage("save clipboard");
-          }}
-          onShowTodos={() => {
-            void submitMessage("show my todo list");
-          }}
-          onDismissAlert={(utilityId) => {
-            void handleDismissUtilityAlert(utilityId);
-          }}
-          onEditNote={(noteId, currentLabel) => {
-            void handleEditUtilityNote(noteId, currentLabel);
-          }}
-          onRunShortcut={(shortcutId) => {
-            void submitMessage(`run shortcut ${shortcutId}`);
-          }}
-          onToggleNote={(noteId, completed) => {
-            void handleToggleUtilityNote(noteId, completed);
-          }}
-        />
+        {isSettingsOpen ? (
+          <>
+            <MicroUtilitiesPanel
+              isBusy={
+                isSending ||
+                isLoadingUtilities ||
+                isLoadingOpenAppPermission ||
+                isLoadingOpenUrlPermission
+              }
+              state={microUtilityState}
+              onSetTimer={() => {
+                void submitMessage("set a 5 minute timer");
+              }}
+              onSaveClipboard={() => {
+                void submitMessage("save clipboard");
+              }}
+              onShowTodos={() => {
+                void submitMessage("show my todo list");
+              }}
+              onDismissAlert={(utilityId) => {
+                void handleDismissUtilityAlert(utilityId);
+              }}
+              onEditNote={(noteId, currentLabel) => {
+                void handleEditUtilityNote(noteId, currentLabel);
+              }}
+              onRunShortcut={(shortcutId) => {
+                void submitMessage(`run shortcut ${shortcutId}`);
+              }}
+              onToggleNote={(noteId, completed) => {
+                void handleToggleUtilityNote(noteId, completed);
+              }}
+            />
 
-        <section className="conversation-shell" aria-label="Conversation surface">
-          <div className="conversation-shell__header">
-            <div>
-              <span className="eyebrow">Recent exchange</span>
-              <h3>{companionTitle} keeps the thread steady</h3>
-            </div>
-            <span className="conversation-shell__status">{companionStateSummary}</span>
-          </div>
+            <section className="conversation-shell" aria-label="Conversation surface">
+              <div className="conversation-shell__header">
+                <div>
+                  <span className="eyebrow">Recent exchange</span>
+                  <h3>{companionTitle} keeps the thread steady</h3>
+                </div>
+                <span className="conversation-shell__status">{companionStateSummary}</span>
+              </div>
 
-          {needsCompanionSetup ? (
+              {needsCompanionSetup ? (
             <article className="welcome-desk" aria-label="Companion readiness guide">
               <span className="eyebrow">Use now</span>
               <h4>Finish the last few pieces that make {companionTitle} feel personal.</h4>
@@ -3390,7 +3536,7 @@ export function CompanionWorkspace() {
             </article>
           ) : null}
 
-          <article className="daily-routines-desk" aria-label="Today with Aster">
+          <article className="daily-routines-desk" aria-label={`Today with ${companionTitle}`}>
             <div className="daily-routines-desk__copy">
               <span className="eyebrow">Today with {companionTitle}</span>
               <h4>Keep the next part of the day small and steady.</h4>
@@ -3467,7 +3613,7 @@ export function CompanionWorkspace() {
                 key={message.id}
               >
                 <span className="message__sender">
-                  {message.sender === "companion" ? companionTitle : "You"}
+                  {message.sender === "companion" ? companionTitle : userDisplayName}
                 </span>
                 <p>{message.text}</p>
               </article>
@@ -3475,7 +3621,7 @@ export function CompanionWorkspace() {
           </div>
 
           {showsFollowUpDesk ? (
-            <article className="follow-up-desk" aria-label="Next with Aster">
+            <article className="follow-up-desk" aria-label={`Next with ${companionTitle}`}>
               <div className="follow-up-desk__copy">
                 <span className="eyebrow">Next with {companionTitle}</span>
                 <p>Keep the same thread going, or hand me the next small thing.</p>
@@ -3515,7 +3661,7 @@ export function CompanionWorkspace() {
             </article>
           ) : null}
 
-          <div className="quick-actions">
+              <div className="quick-actions">
             <button
               className="quick-action-button quick-action-button--primary"
               disabled={isSending}
@@ -3546,31 +3692,33 @@ export function CompanionWorkspace() {
             >
               Open Spotify
             </button>
-          </div>
+              </div>
 
-          <form className="composer" onSubmit={handleSubmit}>
-            <label className="composer__label" htmlFor="chat-input">
-              Write to {companionTitle}. The thread stays local and picks up where
-              you left it.
-            </label>
-            <textarea
-              id="chat-input"
-              className="composer__input"
-              placeholder={`Ask ${companionTitle} for help, a timer, an app, or a small check-in...`}
-              rows={4}
-              value={draft}
-              disabled={isSending}
-              onChange={(event) => handleDraftChange(event.target.value)}
-            />
-            <button
-              className="composer__submit"
-              disabled={isSending}
-              type="submit"
-            >
-              {isSending ? "Waiting for reply..." : "Send message"}
-            </button>
-          </form>
-        </section>
+              <form className="composer" onSubmit={handleSubmit}>
+                <label className="composer__label" htmlFor="chat-input">
+                  Write to {companionTitle}. The thread stays local and picks up where
+                  you left it.
+                </label>
+                <textarea
+                  id="chat-input"
+                  className="composer__input"
+                  placeholder={`Ask ${companionTitle} for help, a timer, an app, or a small check-in...`}
+                  rows={4}
+                  value={draft}
+                  disabled={isSending}
+                  onChange={(event) => handleDraftChange(event.target.value)}
+                />
+                <button
+                  className="composer__submit"
+                  disabled={isSending}
+                  type="submit"
+                >
+                  {isSending ? "Waiting for reply..." : "Send message"}
+                </button>
+              </form>
+            </section>
+          </>
+        ) : null}
       </aside>
     </main>
   );

@@ -11,6 +11,7 @@ import type { SpeechInputSessionStatus } from "../speechInput";
 import type { SpeechOutputStatus } from "../speechOutput";
 import { CompanionAvatar } from "./CompanionAvatar";
 import { Live2DPixiPreview } from "./Live2DPixiPreview";
+import { VrmCanvasPreview } from "./VrmCanvasPreview";
 
 type CompanionStageProps = {
   state: CompanionState;
@@ -37,6 +38,7 @@ type CompanionStageProps = {
   speechPlaybackStatus?: SpeechOutputStatus;
   speechPlaybackProgress?: number;
   speechPlaybackTextLength?: number;
+  immersive?: boolean;
 };
 
 function getAttachmentMode(
@@ -222,6 +224,7 @@ function renderLive2DStage({
   speechPlaybackStatus = "idle",
   speechPlaybackProgress = 0,
   speechPlaybackTextLength = 0,
+  immersive = false,
 }: CompanionStageProps) {
   const runtimeSupport = getRendererRuntimeSupport();
   const attachmentMode = getAttachmentMode(presencePinned, presenceAnchor);
@@ -287,18 +290,22 @@ function renderLive2DStage({
       data-speech-intensity={speechPlaybackIntensity.toFixed(2)}
       style={live2dStyle}
     >
-      <div className="avatar-plaque" aria-hidden="true">
-        <span className="avatar-plaque__label">{stageLabel}</span>
-        <span className="avatar-plaque__badge avatar-plaque__badge--model">
-          {badgeLabel}
-        </span>
-      </div>
-      <div className="avatar-dock" aria-hidden="true">
-        <span className={`avatar-dock__chip avatar-dock__chip--${attachmentMode}`}>
-          {attachmentLabel}
-        </span>
-        <span className={`avatar-dock__rail avatar-dock__rail--${attachmentMode}`} />
-      </div>
+      {!immersive ? (
+        <>
+          <div className="avatar-plaque" aria-hidden="true">
+            <span className="avatar-plaque__label">{stageLabel}</span>
+            <span className="avatar-plaque__badge avatar-plaque__badge--model">
+              {badgeLabel}
+            </span>
+          </div>
+          <div className="avatar-dock" aria-hidden="true">
+            <span className={`avatar-dock__chip avatar-dock__chip--${attachmentMode}`}>
+              {attachmentLabel}
+            </span>
+            <span className={`avatar-dock__rail avatar-dock__rail--${attachmentMode}`} />
+          </div>
+        </>
+      ) : null}
       <div className="live2d-stage__frame" aria-hidden="true">
         <div className="live2d-stage__sheet" />
         <div className="live2d-stage__spotlight" />
@@ -323,25 +330,27 @@ function renderLive2DStage({
         <div className="live2d-stage__scanline live2d-stage__scanline--top" />
         <div className="live2d-stage__scanline live2d-stage__scanline--bottom" />
       </div>
-      <div className={`live2d-stage__status live2d-stage__status--${state}`}>
-        <span className="live2d-stage__status-label">Live2D hooks</span>
-        <strong>{live2dHook}</strong>
-        <span>{blinkHook}</span>
-        <span>{lookAtHook}</span>
-        <span>{idleEyeHook}</span>
-        <span>
-          {speechInputStatus === "hearing"
-            ? `listen-follow ${listeningIntensity.toFixed(2)}`
-            : speechInputStatus === "listening"
-              ? `listen-ready ${listeningIntensity.toFixed(2)}`
-              : "listen-idle"}
-        </span>
-        <span>
-          {speechPlaybackActive
-            ? `speech-follow ${speechPlaybackIntensity.toFixed(2)}`
-            : "speech-idle"}
-        </span>
-      </div>
+      {!immersive ? (
+        <div className={`live2d-stage__status live2d-stage__status--${state}`}>
+          <span className="live2d-stage__status-label">Live2D hooks</span>
+          <strong>{live2dHook}</strong>
+          <span>{blinkHook}</span>
+          <span>{lookAtHook}</span>
+          <span>{idleEyeHook}</span>
+          <span>
+            {speechInputStatus === "hearing"
+              ? `listen-follow ${listeningIntensity.toFixed(2)}`
+              : speechInputStatus === "listening"
+                ? `listen-ready ${listeningIntensity.toFixed(2)}`
+                : "listen-idle"}
+          </span>
+          <span>
+            {speechPlaybackActive
+              ? `speech-follow ${speechPlaybackIntensity.toFixed(2)}`
+              : "speech-idle"}
+          </span>
+        </div>
+      ) : null}
       <span className="avatar-screen-reader">
         {displayName} is on the Live2D stage with the {live2dHook} hook active.
         {` ${blinkHook}. ${lookAtHook}. ${idleEyeHook}. Listening intensity ${listeningIntensity.toFixed(2)}. Speech intensity ${speechPlaybackIntensity.toFixed(2)}. ${attachmentLabel}. ${presenceCue}.`}
@@ -358,6 +367,7 @@ function renderVRMStage({
   modelConfig,
   iconDataUrl,
   previewImageUrl,
+  modelAssetUrl,
   presenceAnchor = "workspace",
   presencePinned = false,
   presenceTargetTitle,
@@ -390,49 +400,33 @@ function renderVRMStage({
       data-stage-runtime={runtimeSupport.vrm.available ? "three-vrm" : "fallback"}
       data-pack-id={packId ?? "none"}
       data-model-asset={modelConfig?.asset_path ?? "missing"}
+      data-model-asset-url={modelAssetUrl ?? "missing"}
       data-attachment-mode={attachmentMode}
       data-attachment-label={attachmentLabel}
       data-vrm-expression={expressionHook}
     >
-      <div className="avatar-plaque" aria-hidden="true">
-        <span className="avatar-plaque__label">{stageLabel}</span>
-        <span className="avatar-plaque__badge avatar-plaque__badge--model">
-          {badgeLabel}
-        </span>
-      </div>
-      <div className="avatar-dock" aria-hidden="true">
-        <span className={`avatar-dock__chip avatar-dock__chip--${attachmentMode}`}>
-          {attachmentLabel}
-        </span>
-        <span className={`avatar-dock__rail avatar-dock__rail--${attachmentMode}`} />
-      </div>
-      <div className="live2d-stage__frame" aria-hidden="true">
+      <div className="live2d-stage__frame live2d-stage__frame--clean" aria-hidden="true">
         <div className="live2d-stage__sheet" />
         <div className="live2d-stage__spotlight" />
-        <div className="live2d-stage__portrait live2d-stage__portrait--vrm">
+        <div className="live2d-stage__portrait live2d-stage__portrait--vrm live2d-stage__portrait--clean">
+          <VrmCanvasPreview
+            displayName={displayName}
+            modelUrl={modelAssetUrl}
+            state={state}
+          />
           {previewImageUrl || iconDataUrl ? (
             <img
               alt=""
-              className="live2d-stage__image"
+              className="live2d-stage__image live2d-stage__image--backdrop"
               src={previewImageUrl ?? iconDataUrl ?? undefined}
             />
-          ) : (
-            <span className="live2d-stage__fallback">
-              {displayName.charAt(0).toUpperCase()}
-            </span>
-          )}
+          ) : null}
           <span className="live2d-stage__vrm-ring" />
         </div>
       </div>
-      <div className={`live2d-stage__status live2d-stage__status--${state}`}>
-        <span className="live2d-stage__status-label">VRM path</span>
-        <strong>{expressionHook}</strong>
-        <span>{runtimeSupport.vrm.available ? "three-vrm runtime" : "runtime fallback"}</span>
-        <span>{presenceCue}</span>
-      </div>
       <span className="avatar-screen-reader">
         {displayName} is on the VRM stage with the {expressionHook} expression hook active.
-        {` ${attachmentLabel}. ${presenceCue}.`}
+        {` ${stageLabel}. ${badgeLabel}. ${attachmentLabel}. ${presenceCue}.`}
       </span>
     </div>
   );
@@ -466,6 +460,7 @@ export function CompanionStage(props: CompanionStageProps) {
       presenceAnchor={props.presenceAnchor}
       presencePinned={props.presencePinned}
       presenceTargetTitle={props.presenceTargetTitle}
+      immersive={props.immersive}
     />
   );
 }

@@ -154,31 +154,32 @@ def test_model_status_reports_missing_model_without_exception(
     assert "download this one first" in result.message
 
 
-def test_generate_companion_reply_returns_loading_message_during_startup(
+def test_generate_companion_reply_uses_present_model_even_before_it_is_loaded(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
     _patch_preferences(tmp_path, monkeypatch)
     _patch_active_pack(monkeypatch)
+    chat_service._model_status_cache.clear()
     preferences.set_selected_model("llama3.1:8b-instruct")
 
     provider_called = {"value": False}
 
-    class ProviderShouldNotRun:
+    class ProviderRunsForColdModel:
         provider_name = "fake-local"
 
         def generate_reply(self, *args, **kwargs) -> ChatProviderResult:
             provider_called["value"] = True
             return ChatProviderResult(
                 ok=True,
-                message="unexpected",
+                message="ready after spin up",
                 provider=self.provider_name,
                 model="llama3.1:8b-instruct",
             )
 
     monkeypatch.setattr(
         "app.chat.service.get_chat_provider",
-        lambda: ProviderShouldNotRun(),
+        lambda: ProviderRunsForColdModel(),
     )
     monkeypatch.setattr(
         "app.chat.service.inspect_ollama_model",
@@ -192,12 +193,11 @@ def test_generate_companion_reply_returns_loading_message_during_startup(
 
     result = chat_service.generate_companion_reply("wake up")
 
-    assert result.ok is False
-    assert result.loading is True
-    assert result.error_code == "model_loading"
-    assert "gathering my local thoughts" in result.message
-    assert "pick the thread back up" in result.message
-    assert provider_called["value"] is False
+    assert result.ok is True
+    assert result.loading is False
+    assert result.error_code is None
+    assert result.message == "ready after spin up"
+    assert provider_called["value"] is True
 
 
 def test_generate_companion_reply_returns_fallback_when_provider_errors(

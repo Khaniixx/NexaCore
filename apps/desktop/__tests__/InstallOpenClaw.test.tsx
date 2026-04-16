@@ -245,25 +245,18 @@ function createInstallerApiMock(
 describe("InstallOpenClaw", () => {
   it("auto-advances through the automatic steps and exposes friendly progress copy", async () => {
     const installerApi = createInstallerApiMock();
+    const onComplete = vi.fn();
 
-    render(<InstallOpenClaw installerApi={installerApi} onComplete={vi.fn()} />);
-
-    await screen.findByRole("button", { name: "Continue with local model" });
+    render(<InstallOpenClaw installerApi={installerApi} onComplete={onComplete} />);
 
     await waitFor(() => {
       expect(installerApi.downloadSetup).toHaveBeenCalled();
       expect(installerApi.installOpenClaw).toHaveBeenCalled();
+      expect(installerApi.configureAI).toHaveBeenCalledWith("llama3.1:8b-instruct");
+      expect(installerApi.startAndConnect).toHaveBeenCalled();
     });
 
-    expect(
-      screen.getByRole("button", { name: "Continue with local model" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getAllByText(/Choose the first local personality core/i).length,
-    ).toBeGreaterThan(0);
-    expect(
-      screen.getByText(/Core features stay local-first/i),
-    ).toBeInTheDocument();
+    expect(onComplete).toHaveBeenCalled();
   });
 
   it("shows active Ollama progress while the automatic download step is still running", async () => {
@@ -321,14 +314,13 @@ describe("InstallOpenClaw", () => {
       expect(installerApi.downloadSetup).toHaveBeenCalled();
     });
 
-    expect(screen.getByText("Preparing your local AI")).toBeInTheDocument();
+    expect(await screen.findByText("Waking the heart")).toBeInTheDocument();
     expect(
-      screen.getAllByText(
-        /Preparing Ollama on this PC so the companion can run locally/i,
-      ).length,
-    ).toBeGreaterThan(0);
+      screen.getByText(/Winding up Ollama so your companion can start humming/i),
+    ).toBeInTheDocument();
     expect(screen.getByText("13%")).toBeInTheDocument();
-    expect(screen.getAllByText("in progress").length).toBeGreaterThan(0);
+    expect(screen.getByText("Download")).toBeInTheDocument();
+    expect(screen.getByText("in progress")).toBeInTheDocument();
   });
 
   it("shows retry and repair actions with non-technical guidance for a failed download", async () => {
@@ -350,18 +342,18 @@ describe("InstallOpenClaw", () => {
     render(<InstallOpenClaw installerApi={installerApi} onComplete={vi.fn()} />);
 
     expect(
-      await screen.findByText(/We paused safely. Use the guidance below to continue/i),
+      await screen.findByText(/We paused safely. Use the button below and we will keep going/i),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/The automatic installer stopped because this step took too long/i),
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Repair setup" }));
+    await user.click(screen.getByRole("button", { name: "Fix it and keep going" }));
     await waitFor(() => {
       expect(installerApi.repair).toHaveBeenCalled();
     });
 
-    await user.click(screen.getByRole("button", { name: "Retry" }));
+    await user.click(screen.getByRole("button", { name: "Try again" }));
     await waitFor(() => {
       expect(installerApi.downloadSetup).toHaveBeenCalled();
     });
@@ -395,14 +387,12 @@ describe("InstallOpenClaw", () => {
 
     render(<InstallOpenClaw installerApi={installerApi} onComplete={vi.fn()} />);
 
-    expect(
-      await screen.findAllByText("Ollama is finishing setup"),
-    ).not.toHaveLength(0);
+    expect(await screen.findByText(/Windows may open Ollama after installation/i)).toBeInTheDocument();
     expect(
       screen.getByText(/Windows may open Ollama after installation/i),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Retry" }),
+      screen.getByRole("button", { name: "Try again" }),
     ).toBeInTheDocument();
   });
 
@@ -492,13 +482,11 @@ describe("InstallOpenClaw", () => {
       await screen.findByText(/The app was interrupted during Install OpenClaw/i),
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Repair setup" }));
+    await user.click(screen.getByRole("button", { name: "Fix it and keep going" }));
 
     await waitFor(() => {
       expect(installerApi.repair).toHaveBeenCalled();
-      expect(
-        screen.getByRole("button", { name: "Continue with local model" }),
-      ).toBeInTheDocument();
+      expect(installerApi.configureAI).toHaveBeenCalled();
     });
   });
 
@@ -536,26 +524,11 @@ describe("InstallOpenClaw", () => {
         message: "OpenClaw is installed locally and ready for AI setup.",
       };
     });
-    const user = userEvent.setup();
-
     render(<InstallOpenClaw installerApi={installerApi} onComplete={onComplete} />);
-
-    const continueButton = await screen.findByRole("button", {
-      name: "Continue with local model",
-    });
-    await waitFor(() => {
-      expect(continueButton).toBeEnabled();
-    });
-
-    await user.selectOptions(
-      screen.getByLabelText("Default model"),
-      "mistral-small:24b-instruct",
-    );
-    await user.click(continueButton);
 
     await waitFor(() => {
       expect(installerApi.configureAI).toHaveBeenCalledWith(
-        "mistral-small:24b-instruct",
+        "llama3.1:8b-instruct",
       );
       expect(installerApi.startAndConnect).toHaveBeenCalled();
       expect(onComplete).toHaveBeenCalled();

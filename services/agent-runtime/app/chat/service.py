@@ -133,15 +133,13 @@ def _availability_to_status(availability: ModelAvailability) -> CachedModelStatu
             "model_missing",
             model_name=availability.model,
         )
-    elif not availability.loaded:
-        state = "loading"
-        message = format_in_character_error(
-            "model_loading",
-            model_name=availability.model,
-        )
     else:
         state = "ready"
-        message = "Your local model is awake and ready."
+        message = (
+            "Your local model is awake and ready."
+            if availability.loaded
+            else "Your local model is present and ready to spin up on first reply."
+        )
 
     return CachedModelStatus(
         state=state,

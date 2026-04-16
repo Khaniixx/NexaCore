@@ -48,6 +48,25 @@ fn runtime_data_dir(app: &tauri::App) -> Result<PathBuf, String> {
 }
 
 fn runtime_executable_path(app: &tauri::App) -> Result<Option<PathBuf>, String> {
+    if cfg!(debug_assertions) {
+        let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(|path| path.parent())
+            .and_then(|path| path.parent())
+            .map(|path| path.to_path_buf())
+            .ok_or_else(|| "Could not resolve repo root".to_string())?;
+
+        let dev_runtime = repo_root
+            .join("services")
+            .join("agent-runtime")
+            .join(".venv")
+            .join("Scripts")
+            .join("python.exe");
+        if dev_runtime.exists() {
+            return Ok(Some(dev_runtime));
+        }
+    }
+
     if let Ok(resource_dir) = app.path().resource_dir() {
         for candidate in [
             resource_dir.join("companion-runtime.exe"),
@@ -69,24 +88,6 @@ fn runtime_executable_path(app: &tauri::App) -> Result<Option<PathBuf>, String> 
                     return Ok(Some(candidate));
                 }
             }
-        }
-    }
-
-    if cfg!(debug_assertions) {
-        let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .and_then(|path| path.parent())
-            .map(|path| path.to_path_buf())
-            .ok_or_else(|| "Could not resolve repo root".to_string())?;
-
-        let dev_runtime = repo_root
-            .join("services")
-            .join("agent-runtime")
-            .join(".venv")
-            .join("Scripts")
-            .join("python.exe");
-        if dev_runtime.exists() {
-            return Ok(Some(dev_runtime));
         }
     }
 
