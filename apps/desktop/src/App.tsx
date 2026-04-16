@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 
+import { CompanionOnboarding } from "./components/CompanionOnboarding";
 import { CompanionWorkspace } from "./components/CompanionWorkspace";
-import { InstallOpenClaw } from "./components/InstallOpenClaw";
 import { installerApi } from "./installerApi";
+import { loadOnboardingProfile } from "./onboardingProfile";
+import { packApi } from "./packApi";
 
 export default function App() {
   const [installerResolved, setInstallerResolved] = useState(false);
+  const [connectionReady, setConnectionReady] = useState(false);
   const [showCompanionWorkspace, setShowCompanionWorkspace] = useState(false);
 
   useEffect(() => {
@@ -19,12 +22,42 @@ export default function App() {
           return;
         }
 
-        setShowCompanionWorkspace(status.connection.connected);
+        let hasActiveCompanion = false;
+        if (status.connection.connected) {
+          try {
+            const packState = await packApi.listPacks();
+            if (!active) {
+              return;
+            }
+
+            hasActiveCompanion =
+              packState.active_pack_id !== null ||
+              packState.packs.some((pack) => pack.active);
+
+            if (!hasActiveCompanion && packState.packs.length > 0) {
+              const selectedPack = await packApi.selectActivePack(packState.packs[0].id);
+              if (!active) {
+                return;
+              }
+              hasActiveCompanion = selectedPack.active_pack_id !== null;
+            }
+          } catch {
+            hasActiveCompanion = false;
+          }
+        }
+
+        const onboardingProfile = loadOnboardingProfile();
+        setConnectionReady(status.connection.connected);
+        setShowCompanionWorkspace(
+          status.connection.connected &&
+            (onboardingProfile?.completed === true || hasActiveCompanion),
+        );
       } catch {
         if (!active) {
           return;
         }
 
+        setConnectionReady(false);
         setShowCompanionWorkspace(false);
       } finally {
         if (active) {
@@ -58,8 +91,10 @@ export default function App() {
 
   if (!showCompanionWorkspace) {
     return (
-      <InstallOpenClaw
+      <CompanionOnboarding
+        initialConnectionReady={connectionReady}
         onComplete={() => {
+          setConnectionReady(true);
           setShowCompanionWorkspace(true);
         }}
       />

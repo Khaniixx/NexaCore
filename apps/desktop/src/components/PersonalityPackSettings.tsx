@@ -16,6 +16,8 @@ type PersonalityPackSettingsProps = {
   packApi?: PackApi;
   marketplaceApi?: MarketplaceApi;
   onPacksChanged?: (packs: InstalledPack[], activePackId: string | null) => void;
+  mode?: "settings" | "onboarding";
+  showMarketplace?: boolean;
 };
 
 function formatContentRating(pack: InstalledPack): string {
@@ -101,6 +103,8 @@ export function PersonalityPackSettings({
   packApi = defaultPackApi,
   marketplaceApi = defaultMarketplaceApi,
   onPacksChanged,
+  mode = "settings",
+  showMarketplace = true,
 }: PersonalityPackSettingsProps) {
   const onPacksChangedRef = useRef(onPacksChanged);
   const [packs, setPacks] = useState<InstalledPack[]>([]);
@@ -230,6 +234,8 @@ export function PersonalityPackSettings({
       }
     };
   }, [portraitPreviewUrl]);
+
+  const isOnboardingMode = mode === "onboarding";
 
   async function handleInstallZip(): Promise<void> {
     if (!zipFile || isInstallingZip) {
@@ -393,8 +399,14 @@ export function PersonalityPackSettings({
     <section className="pack-settings" aria-label="Personality packs">
       <div className="pack-settings__header">
         <div>
-          <span className="eyebrow">Personality Packs</span>
-          <h3>Choose how the companion feels on this device.</h3>
+          <span className="eyebrow">
+            {isOnboardingMode ? "Choose your companion" : "Personality Packs"}
+          </span>
+          <h3>
+            {isOnboardingMode
+              ? "Pick a personality, a body, and a voice."
+              : "Choose how the companion feels on this device."}
+          </h3>
         </div>
         <span className="settings-health settings-health--ready">
           {activePack ? `Active: ${activePack.display_name}` : "No pack installed yet"}
@@ -416,12 +428,12 @@ export function PersonalityPackSettings({
             />
             <div>
               <span className="eyebrow">NexaCore</span>
-              <h4>Build one persistent companion, not a pile of disconnected assets.</h4>
+              <h4>Make one companion without a confusing setup maze.</h4>
             </div>
           </div>
           <p>
-            Bring in a personality, attach a body or portrait, tune the voice, and
-            activate the result as one continuous being on your desk.
+            Pick what they are like, how they look, and how they sound. NexaCore
+            handles the rest.
           </p>
           <div className="nexacore-hero__signals" aria-label="NexaCore traits">
             <span>Local-first</span>
@@ -434,7 +446,7 @@ export function PersonalityPackSettings({
             <strong>{activePack ? "Pack ready" : "No active pack yet"}</strong>
             <p>
               {getCharacterSummary(activePack) ??
-                "Start with a personality source or build a draft character below."}
+                "Import a personality or choose one simple path below."}
             </p>
           </div>
         </div>
@@ -457,7 +469,7 @@ export function PersonalityPackSettings({
             <strong>{builderCompanionName}</strong>
             <p>
               {builderSummary.trim() ||
-                "Give this draft a sharper read so the desk feels like a real character instead of a placeholder."}
+                "This will become your companion once you pick the personality, body, and voice."}
             </p>
           </div>
 
@@ -490,7 +502,13 @@ export function PersonalityPackSettings({
               void handleCreateCharacterPack();
             }}
           >
-            {isCreatingCharacter ? "Building character..." : "Build and use this companion"}
+            {isCreatingCharacter
+              ? isOnboardingMode
+                ? "Getting your companion ready..."
+                : "Building character..."
+              : isOnboardingMode
+                ? "Use this companion"
+                : "Build and use this companion"}
           </button>
         </div>
       </article>
@@ -498,12 +516,11 @@ export function PersonalityPackSettings({
       <div className="nexacore-studio-grid">
         <article className="settings-card nexacore-stage-card">
           <div className="nexacore-stage-card__header">
-            <span className="settings-card__label">Stage 1</span>
-            <h4>Choose a source path</h4>
+            <span className="settings-card__label">Personality</span>
+            <h4>Choose or import the personality.</h4>
           </div>
           <p className="nexacore-stage-card__intro">
-            Start from whatever you already have. NexaCore should make that usable
-            quickly instead of forcing a manual pack format first.
+            Keep this simple. Click one path, or import one file.
           </p>
           <div className="nexacore-source-list">
             <section className="nexacore-source-item">
@@ -512,7 +529,7 @@ export function PersonalityPackSettings({
                 <p>Install a signed local bundle when the character is already assembled.</p>
               </div>
               <label className="pack-settings__file-label" htmlFor="pack-zip-upload">
-                Choose zip archive
+                {isOnboardingMode ? "Import pack zip" : "Choose zip archive"}
               </label>
               <input
                 id="pack-zip-upload"
@@ -542,7 +559,7 @@ export function PersonalityPackSettings({
                 <p>Convert a Tavern PNG into a local character shell you can keep shaping.</p>
               </div>
               <label className="pack-settings__file-label" htmlFor="tavern-card-upload">
-                Choose Tavern PNG
+                {isOnboardingMode ? "Import Tavern card" : "Choose Tavern PNG"}
               </label>
               <input
                 id="tavern-card-upload"
@@ -572,7 +589,7 @@ export function PersonalityPackSettings({
                 <p>Import one or more local VRM bodies so they can be linked into character builds.</p>
               </div>
               <label className="pack-settings__file-label" htmlFor="vrm-model-upload">
-                Choose VRM files
+                {isOnboardingMode ? "Import VRM body" : "Choose VRM files"}
               </label>
               <input
                 id="vrm-model-upload"
@@ -611,12 +628,14 @@ export function PersonalityPackSettings({
 
         <article className="settings-card nexacore-stage-card">
           <div className="nexacore-stage-card__header">
-            <span className="settings-card__label">Stage 2</span>
-            <h4>Define the character core</h4>
+            <span className="settings-card__label">Personality details</span>
+            <h4>Name the companion and describe who they are.</h4>
           </div>
           <div className="nexacore-form-grid">
             <label className="settings-field nexacore-field nexacore-field--span-2">
-              <span className="settings-field__label">Character name</span>
+              <span className="settings-field__label">
+                {isOnboardingMode ? "Companion name" : "Character name"}
+              </span>
               <input
                 value={builderDisplayName}
                 onChange={(event) => {
@@ -627,7 +646,9 @@ export function PersonalityPackSettings({
               />
             </label>
             <label className="settings-field nexacore-field nexacore-field--span-2">
-              <span className="settings-field__label">Character summary</span>
+              <span className="settings-field__label">
+                {isOnboardingMode ? "Who are they?" : "Character summary"}
+              </span>
               <textarea
                 rows={4}
                 value={builderSummary}
@@ -638,7 +659,9 @@ export function PersonalityPackSettings({
               />
             </label>
             <label className="settings-field nexacore-field nexacore-field--span-2">
-              <span className="settings-field__label">Opening line</span>
+              <span className="settings-field__label">
+                {isOnboardingMode ? "First hello" : "Opening line"}
+              </span>
               <textarea
                 rows={3}
                 value={builderOpening}
@@ -649,7 +672,9 @@ export function PersonalityPackSettings({
               />
             </label>
             <label className="settings-field nexacore-field">
-              <span className="settings-field__label">Scenario</span>
+              <span className="settings-field__label">
+                {isOnboardingMode ? "Where do they meet you?" : "Scenario"}
+              </span>
               <input
                 value={builderScenario}
                 onChange={(event) => {
@@ -660,7 +685,9 @@ export function PersonalityPackSettings({
               />
             </label>
             <label className="settings-field nexacore-field">
-              <span className="settings-field__label">Tone notes</span>
+              <span className="settings-field__label">
+                {isOnboardingMode ? "How should they sound?" : "Tone notes"}
+              </span>
               <input
                 value={builderStyleNotes}
                 onChange={(event) => {
@@ -675,12 +702,14 @@ export function PersonalityPackSettings({
 
         <article className="settings-card nexacore-stage-card">
           <div className="nexacore-stage-card__header">
-            <span className="settings-card__label">Stage 3</span>
-            <h4>Attach presence and voice</h4>
+            <span className="settings-card__label">Body and voice</span>
+            <h4>Pick how your companion looks and sounds.</h4>
           </div>
           <div className="nexacore-form-grid">
             <label className="settings-field nexacore-field nexacore-field--span-2">
-              <span className="settings-field__label">Body source</span>
+              <span className="settings-field__label">
+                {isOnboardingMode ? "Body" : "Body source"}
+              </span>
               <select
                 value={builderSourcePackId}
                 onChange={(event) => {
@@ -697,7 +726,7 @@ export function PersonalityPackSettings({
             </label>
             <div className="nexacore-upload-card nexacore-field nexacore-field--span-2">
               <label className="pack-settings__file-label" htmlFor="builder-portrait-upload">
-                Choose portrait image
+                {isOnboardingMode ? "Import portrait" : "Choose portrait image"}
               </label>
               <input
                 id="builder-portrait-upload"
@@ -713,7 +742,9 @@ export function PersonalityPackSettings({
               </p>
             </div>
             <label className="settings-field nexacore-field">
-              <span className="settings-field__label">Voice path</span>
+              <span className="settings-field__label">
+                {isOnboardingMode ? "Voice" : "Voice path"}
+              </span>
               <select
                 value={builderVoiceProvider}
                 onChange={(event) => {
@@ -726,7 +757,9 @@ export function PersonalityPackSettings({
               </select>
             </label>
             <label className="settings-field nexacore-field">
-              <span className="settings-field__label">Voice tone</span>
+              <span className="settings-field__label">
+                {isOnboardingMode ? "Voice style" : "Voice tone"}
+              </span>
               <select
                 value={builderVoiceStyle}
                 onChange={(event) => {
@@ -863,15 +896,17 @@ export function PersonalityPackSettings({
           {notice}
         </p>
       ) : null}
-      <MarketplaceBrowser
-        marketplaceApi={marketplaceApi}
-        onInstalled={async () => {
-          await refreshPacks();
-        }}
-        onNotice={(message) => {
-          setNotice(message);
-        }}
-      />
+      {showMarketplace ? (
+        <MarketplaceBrowser
+          marketplaceApi={marketplaceApi}
+          onInstalled={async () => {
+            await refreshPacks();
+          }}
+          onNotice={(message) => {
+            setNotice(message);
+          }}
+        />
+      ) : null}
       {error ? (
         <p className="installer-error" role="alert">
           {error}

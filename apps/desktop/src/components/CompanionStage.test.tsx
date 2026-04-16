@@ -187,7 +187,7 @@ describe("CompanionStage", () => {
     expect(stage).toHaveAttribute("data-stage-renderer", "vrm");
     expect(stage).toHaveAttribute("data-stage-runtime", "three-vrm");
     expect(stage).toHaveAttribute("data-vrm-expression", "idle-vrm");
-    expect(screen.getByText("three-vrm ready")).toBeInTheDocument();
-    expect(screen.getByText("three-vrm runtime")).toBeInTheDocument();
+    expect(stage).toHaveAttribute("data-model-asset-url", "missing");
+    expect(screen.getByLabelText("Sunrise VRM preview")).toBeInTheDocument();
   });
 });
