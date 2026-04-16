@@ -1,15 +1,15 @@
-# Companion OS
+# NexaCore
 
 <p align="center">
-  <img src="./apps/desktop/src-tauri/icons/icon.png" alt="Companion OS icon" width="96" />
+  <img src="./apps/desktop/src/assets/nexacore-logo-v1-core-network.svg" alt="NexaCore logo" width="112" />
 </p>
 
 <p align="center">
-  <strong>A local-first desktop companion with real tools, real personality, and visible presence.</strong>
+  <strong>A local-first desktop companion that brings one persistent AI friend onto your screen.</strong>
 </p>
 
 <p align="center">
-  Companion OS is building toward one persistent AI companion that lives on your desktop, helps with useful tasks, and feels like a character you keep around, not just another chat tool.
+  NexaCore is building toward one persistent AI companion that lives on your desktop, helps with useful tasks, and feels like a character you keep around, not just another chat tool.
 </p>
 
 <p align="center">
@@ -21,9 +21,9 @@
   <img src="https://img.shields.io/badge/models-local--first-1d4ed8.svg" alt="Local first" />
 </p>
 
-## What Companion OS Is
+## What NexaCore Is
 
-Companion OS is not trying to be a faceless assistant or a desktop pet with no utility.
+NexaCore is not trying to be a faceless assistant or a desktop pet with no utility.
 
 The goal is a single companion identity that:
 
@@ -36,11 +36,11 @@ The goal is a single companion identity that:
 
 The guiding rule for the project is:
 
-> Companion OS should feel like a real companion with useful powers, not a useful tool with a face.
+> NexaCore should feel like a real companion with useful powers, not a useful tool with a face.
 
 ## Current Scope
 
-Companion OS is currently a Windows-first desktop MVP.
+NexaCore is currently a Windows-first desktop MVP.
 
 - Supported release target: Windows desktop
 - Experimental targets: Linux and macOS
@@ -64,7 +64,7 @@ The current `main` branch already includes:
 
 ## Product Direction On Customization
 
-Companion OS is being built so voice, avatar presentation, and personality pack
+NexaCore is being built so voice, avatar presentation, and personality pack
 identity are part of the base product, not optional garnish.
 
 That means the long-term product direction includes:
@@ -87,7 +87,7 @@ Most AI desktop apps are either:
 - capable, but emotionally empty
 - charming, but not actually useful
 
-Companion OS is trying to combine both:
+NexaCore is trying to combine both:
 
 - DesktopMate-style presence
 - Sakura.fm-style consistency
@@ -178,7 +178,7 @@ Deprioritized for now:
 
 ## Contributing
 
-Companion OS welcomes contributions, but the repo is opinionated about product direction.
+NexaCore welcomes contributions, but the repo is opinionated about product direction.
 
 Before opening a PR:
 
@@ -197,4 +197,4 @@ Helpful references:
 
 ## License
 
-Companion OS is available under the [MIT License](./LICENSE).
+NexaCore is available under the [MIT License](./LICENSE).

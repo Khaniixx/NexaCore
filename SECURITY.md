@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-Companion OS is still pre-1.0. Security fixes are only guaranteed on the latest
+NexaCore is still pre-1.0. Security fixes are only guaranteed on the latest
 state of the default branch.
 
 | Version | Supported |

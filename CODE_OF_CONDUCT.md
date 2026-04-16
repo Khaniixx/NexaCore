@@ -1,8 +1,8 @@
-# Companion OS Code Of Conduct
+# NexaCore Code Of Conduct
 
 ## Our Standard
 
-Companion OS is built in public, but collaboration still needs clear boundaries.
+NexaCore is built in public, but collaboration still needs clear boundaries.
 We expect contributors and maintainers to treat each other with respect, act in
 good faith, and keep technical disagreement focused on the work.
 
@@ -28,7 +28,7 @@ Examples of unacceptable behavior include:
 
 This code of conduct applies in project spaces, including issues, pull
 requests, discussions, review comments, chats, and other public or private
-communication channels used for Companion OS collaboration.
+communication channels used for NexaCore collaboration.
 
 ## Enforcement
 

@@ -1,8 +1,8 @@
 [package]
 name = "companion_desktop"
 version = "0.1.0"
-description = "Desktop shell for Companion OS"
-authors = ["Companion OS contributors"]
+description = "Desktop shell for NexaCore"
+authors = ["NexaCore contributors"]
 edition = "2021"
 build = "build.rs"
 

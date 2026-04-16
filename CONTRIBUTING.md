@@ -1,8 +1,8 @@
-# Contributing To Companion OS
+# Contributing To NexaCore
 
 ## Before You Start
 
-Companion OS is centered on one persistent companion identity. Changes that
+NexaCore is centered on one persistent companion identity. Changes that
 split the product into separate assistant "modes" for coding, gaming,
 streaming, or casual use should not be proposed. The companion can change
 state, presentation, and permissions, but it remains the same companion.
